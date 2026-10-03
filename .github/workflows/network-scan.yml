@@ -59,6 +59,7 @@ jobs:
           SHOPSCAN_RENDER_SETTLE_MS: "1000"
         run: python network_runner.py
       - name: Upload scan results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: shopscan-results-${{ matrix.sprint }}-${{ github.run_id }}
