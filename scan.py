@@ -5,7 +5,7 @@ from dom import Tree, walk, ws, element_path, stable_signature
 from names import build_id_index, name_evidence
 from shopify import detect_platform, market_signals, collect
 
-SCANNER_VERSION = "1.1.0"
+SCANNER_VERSION = "1.2.0"
 OBSERVATION = "static_html"
 SNIPPET_MAX = 400
 RULES = {
