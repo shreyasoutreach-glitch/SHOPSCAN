@@ -1,4 +1,4 @@
-name: ShopScan network scan
+name: ShopScan corpus scan
 
 on:
   push:
@@ -14,11 +14,17 @@ permissions:
 
 jobs:
   scan:
+    strategy:
+      fail-fast: false
+      matrix:
+        sprint: [sprint2, sprint3, sprint4, sprint5]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -32,16 +38,17 @@ jobs:
         run: python -m pytest -q tests/test_rendered.py
       - name: Run ShopScan
         env:
-          SHOPSCAN_WORKERS: "2"
-          SHOPSCAN_DELAY: "2"
+          SHOPSCAN_DOMAINS: corpus/${{ matrix.sprint }}.txt
+          SHOPSCAN_WORKERS: "4"
+          SHOPSCAN_DELAY: "1.5"
           SHOPSCAN_MAX_BYTES: "3000000"
           SHOPSCAN_RENDERED: "playwright"
           SHOPSCAN_RENDER_TIMEOUT_MS: "20000"
-          SHOPSCAN_RENDER_SETTLE_MS: "1200"
+          SHOPSCAN_RENDER_SETTLE_MS: "1000"
         run: python network_runner.py
       - name: Upload scan results
         uses: actions/upload-artifact@v4
         with:
-          name: shopscan-results-${{ github.run_id }}
+          name: shopscan-results-${{ matrix.sprint }}-${{ github.run_id }}
           path: out/
           retention-days: 14
