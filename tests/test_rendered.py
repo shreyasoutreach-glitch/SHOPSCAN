@@ -1,4 +1,4 @@
-import sys,types
+import builtins,sys,types
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from rendered import CONFIRMED,ERROR,NOT_REPRODUCED
@@ -9,6 +9,7 @@ def fake_playwright(found=True):
     class Page:
         url="https://example.com/"
         def on(self,*args): pass
+        def set_viewport_size(self,*args): pass
         def goto(self,*args,**kwargs): return Response()
         def wait_for_timeout(self,*args): pass
         def evaluate(self,js,candidates=None):
@@ -17,7 +18,7 @@ def fake_playwright(found=True):
                     "element_count":42,"title":"Example","ready_state":"complete","scroll_height":2000}
         def close(self): pass
     class Context:
-        def new_page(self,**kwargs): return Page()
+        def new_page(self): return Page()
         def close(self): pass
     class Browser:
         def new_context(self,**kwargs): return Context()
@@ -44,7 +45,11 @@ def test_not_reproduced(monkeypatch):
     assert v.verify("https://example.com",[f])[(f["signature"],0)]==NOT_REPRODUCED
 
 def test_browser_import_failure(monkeypatch):
+    real_import=builtins.__import__
+    def blocked(name,*args,**kwargs):
+        if name=="playwright.sync_api": raise ModuleNotFoundError("blocked for test")
+        return real_import(name,*args,**kwargs)
+    monkeypatch.setattr(builtins,"__import__",blocked)
     monkeypatch.delitem(sys.modules,"playwright.sync_api",raising=False)
-    monkeypatch.setitem(sys.modules,"playwright",types.SimpleNamespace())
     f={"signature":"button-name|button|||","occurrence":0}; v=PlaywrightVerifier()
     assert v.verify("https://example.com",[f])[(f["signature"],0)]==ERROR
