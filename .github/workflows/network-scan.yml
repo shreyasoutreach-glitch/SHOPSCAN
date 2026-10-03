@@ -47,7 +47,12 @@ jobs:
           python -m pytest -vv tests/test_rendered.py tests/test_repair.py tests/test_adversarial.py > out/pytest.log 2>&1 || true
           cat out/pytest.log
       - name: Run adversarial simulation lab
-        run: python simulations/run_lab.py
+        run: python simulations/run_lab.py > out/lab.log 2>&1 || (cat out/lab.log; exit 1)
+      - name: Capture lab diagnostics
+        if: always()
+        run: |
+          mkdir -p out
+          test -f out/lab.log && cat out/lab.log || true
       - name: Run ShopScan
         env:
           SHOPSCAN_DOMAINS: corpus/${{ matrix.sprint }}.txt
