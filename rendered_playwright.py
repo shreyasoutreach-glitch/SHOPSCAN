@@ -96,7 +96,7 @@ class PlaywrightVerifier(RenderedVerifier):
                 browser=p.chromium.launch(headless=self.headless)
                 context=browser.new_context(ignore_https_errors=True,service_workers="block",locale="en-US",timezone_id="America/New_York")
                 for width,height in self.viewports:
-                    page=context.new_page(viewport={"width":width,"height":height}); console_errors=[]; page_errors=[]; request_failures=[]
+                    page=context.new_page(); page.set_viewport_size({"width":width,"height":height}); console_errors=[]; page_errors=[]; request_failures=[]
                     page.on("console",lambda msg: console_errors.append(msg.type) if msg.type=="error" else None)
                     page.on("pageerror",lambda exc: page_errors.append(str(exc)[:300]))
                     page.on("requestfailed",lambda req: request_failures.append(req.url[:300]))
