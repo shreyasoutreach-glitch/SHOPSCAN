@@ -1,4 +1,4 @@
-name: ShopScan corpus scan
+name: A11yForge corpus + adversarial verification
 
 on:
   push:
@@ -38,8 +38,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-rendered.txt pytest==8.4.2
           python -m playwright install --with-deps chromium
-      - name: Run rendered unit tests
-        run: python -m pytest -q tests/test_rendered.py
+      - name: Run unit and repair tests
+        run: python -m pytest -q tests/test_rendered.py tests/test_repair.py tests/test_adversarial.py
+      - name: Run adversarial simulation lab
+        run: python simulations/run_lab.py
       - name: Run ShopScan
         env:
           SHOPSCAN_DOMAINS: corpus/${{ matrix.sprint }}.txt
