@@ -40,6 +40,12 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Run unit and repair tests
         run: python -m pytest -q tests/test_rendered.py tests/test_repair.py tests/test_adversarial.py
+      - name: Capture test diagnostics
+        if: always()
+        run: |
+          mkdir -p out
+          python -m pytest -vv tests/test_rendered.py tests/test_repair.py tests/test_adversarial.py > out/pytest.log 2>&1 || true
+          cat out/pytest.log
       - name: Run adversarial simulation lab
         run: python simulations/run_lab.py
       - name: Run ShopScan
