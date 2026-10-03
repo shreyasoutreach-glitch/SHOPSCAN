@@ -28,7 +28,7 @@ def repair_html(source, findings, *, default_language=None):
 
         if rule == "meta-viewport":
             fixed = re.sub(r"(user-scalable\s*=\s*)(?:no|0)\b", r"\1yes", chunk, flags=re.I)
-            fixed = re.sub(r"(maximum-scale\s*=\s*)(?:[0-9.]+)\b", r"\11.0", fixed, flags=re.I)
+            fixed = re.sub(r"(maximum-scale\s*=\s*)(?:[0-9.]+)\b", r"\g<1>1.0", fixed, flags=re.I)
             if fixed != chunk:
                 out = out[:off] + fixed + out[off + len(chunk):]
                 repairs.append(_repair(f, SAFE, "restored user zoom in viewport metadata"))
