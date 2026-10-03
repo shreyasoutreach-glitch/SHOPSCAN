@@ -1,4 +1,4 @@
-# one domain per line (no https://)\n# Sprint 1: high-value US Shopify corpus
+# Sprint 1: high-value US Shopify corpus
 onepeloton.com
 waterdrop.com
 stevemadden.com
@@ -109,4 +109,4 @@ mvmt.com
 partakefoods.com
 sokoglam.com
 taylorstitch.com
-stevemadden.com\n
+stevemadden.com\nonepeloton.com
