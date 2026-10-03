@@ -1,7 +1,12 @@
-"""Browser-backed rendered DOM verification for ShopScan."""
+"""High-confidence browser verification for ShopScan.
+
+The static scanner finds candidates from source HTML. This module verifies those candidates
+against the hydrated browser DOM at multiple responsive viewports, records evidence, and
+fails conservatively when the browser cannot produce a trustworthy observation.
+"""
 from rendered import RenderedVerifier, CONFIRMED, NOT_REPRODUCED, ERROR
 
-JS = r'''
+OBSERVE_JS = r'''
 (candidates) => {
   const DYN=/^(id|style|nonce|data-.*|on.*|tabindex|for|aria-(describedby|controls|owns|labelledby)|key)$/i;
   const hashy=s=>s.split(/[-_]/).some(x=>/^[0-9a-f]{8,}$/i.test(x)||/\d{3,}/.test(x)||(x.length>=6&&/\d/.test(x)&&/[a-z]/i.test(x)));
@@ -12,56 +17,107 @@ JS = r'''
     const links=[]; if(e.hasAttribute('href'))links.push('href:'+path(e.getAttribute('href'))); if(e.hasAttribute('src'))links.push('src:'+path(e.getAttribute('src')));
     return names.join(',')+'|'+cls+'|'+links.join('|');
   };
-  const visible=e=>{if(e.closest('[hidden],template,noscript,[aria-hidden="true"]'))return false;const s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'};
-  const named=e=>{
-    const a=e.getAttribute('aria-label'); if(a&&a.trim())return true;
-    const r=e.getAttribute('aria-labelledby'); if(r&&r.split(/\s+/).some(id=>{const x=document.getElementById(id);return x&&x.textContent.trim()}))return true;
-    if(e.id&&[...document.querySelectorAll('label')].some(x=>x.htmlFor===e.id))return true;
-    if(e.closest('label'))return true;
-    if(e.tagName==='IMG')return e.hasAttribute('alt');
-    if(e.tagName==='IFRAME'||e.tagName==='FRAME')return !!e.getAttribute('title')?.trim();
-    return !!e.textContent?.trim()||!!e.getAttribute('title')?.trim()||!!e.getAttribute('value')?.trim();
+  const visible=e=>{
+    if(e.closest('[hidden],template,noscript,[aria-hidden="true"]'))return false;
+    const s=getComputedStyle(e); return s.display!=='none'&&s.visibility!=='hidden'&&parseFloat(s.opacity||'1')>0;
   };
-  const matches=r=>[...document.querySelectorAll('*')].filter(e=>{
-    if(!visible(e))return false; const t=e.tagName.toLowerCase();
-    if(r==='image-alt')return t==='img'&&!e.hasAttribute('alt');
-    if(r==='label')return ['input','textarea','select'].includes(t)&&!(t==='input'&&['hidden','submit','reset','button','image'].includes((e.getAttribute('type')||'text').toLowerCase()))&&!named(e);
-    if(r==='button-name')return t==='button'&&!named(e);
-    if(r==='link-name')return t==='a'&&e.hasAttribute('href')&&!named(e);
-    if(r==='frame-title')return(t==='iframe'||t==='frame')&&!named(e);
-    if(r==='html-has-lang')return t==='html'&&!((e.getAttribute('lang')||e.getAttribute('xml:lang')||'').trim());
-    if(r==='document-title')return t==='html'&&!document.title.trim();if(r==='meta-viewport'){if(t!=='meta'||(e.getAttribute('name')||'').toLowerCase()!=='viewport')return false;const c=(e.getAttribute('content')||'').toLowerCase();return /user-scalable\s*=\s*(no|0)\b/.test(c)||/(^|[;,]\s*)maximum-scale\s*=\s*[0-9.]+/.test(c)&&Number((c.match(/maximum-scale\s*=\s*([0-9.]+)/)||[])[1]||99)<=1}
-    return false;
-  });
-  const seen=new Map();
-  for(const r of ['image-alt','label','button-name','link-name','frame-title','html-has-lang','document-title','meta-viewport'])
-    for(const e of matches(r)){const s=r+'|'+e.tagName.toLowerCase()+'|'+shape(e);seen.set(s,(seen.get(s)||0)+1)}
-  return candidates.map(c=>({signature:c.signature,occurrence:c.occurrence,found:(seen.get(c.signature)||0)>Number(c.occurrence||0)}));
+  const text=e=>(e.textContent||'').replace(/\s+/g,' ').trim();
+  const named=e=>{
+    const a=e.getAttribute('aria-label'); if(a&&a.trim())return {ok:true,source:'aria-label'};
+    const r=e.getAttribute('aria-labelledby');
+    if(r){const v=r.split(/\s+/).map(id=>document.getElementById(id)).filter(Boolean).map(text).filter(Boolean).join(' '); if(v)return {ok:true,source:'aria-labelledby'};}
+    if(e.tagName==='IMG'&&e.hasAttribute('alt'))return {ok:true,source:'alt'};
+    if(e.tagName==='IFRAME'||e.tagName==='FRAME')return e.getAttribute('title')?.trim()?{ok:true,source:'title'}:{ok:false,source:'none'};
+    if(e.id&&[...document.querySelectorAll('label')].some(x=>x.htmlFor===e.id&&text(x)))return {ok:true,source:'label-for'};
+    if(e.closest('label')&&text(e.closest('label')))return {ok:true,source:'label'};
+    if(text(e))return {ok:true,source:'text'};
+    if(e.getAttribute('title')?.trim())return {ok:true,source:'title'};
+    if(e.getAttribute('value')?.trim())return {ok:true,source:'value'};
+    return {ok:false,source:'none'};
+  };
+  const deep=[];
+  const visit=root=>{for(const e of root.children||[]){deep.push(e);if(e.shadowRoot)visit(e.shadowRoot);visit(e);}};
+  visit(document);
+  const byRule={};
+  const add=(rule,e)=>{const s=rule+'|'+e.tagName.toLowerCase()+'|'+shape(e);(byRule[s]??=[]).push(e)};
+  for(const e of deep){
+    if(!visible(e))continue; const t=e.tagName.toLowerCase();
+    if(t==='img'&&!e.hasAttribute('alt'))add('image-alt',e);
+    if(['input','textarea','select'].includes(t)){
+      const typ=(e.getAttribute('type')||'text').toLowerCase();
+      if(!(t==='input'&&['hidden','submit','reset','button','image'].includes(typ))&&!named(e).ok)add('label',e);
+    }
+    if(t==='button'&&!named(e).ok)add('button-name',e);
+    if(t==='a'&&e.hasAttribute('href')&&!named(e).ok)add('link-name',e);
+    if((t==='iframe'||t==='frame')&&!named(e).ok)add('frame-title',e);
+    if(t==='html'&&!((e.getAttribute('lang')||e.getAttribute('xml:lang')||'').trim()))add('html-has-lang',e);
+    if(t==='meta'&&(e.getAttribute('name')||'').toLowerCase()==='viewport'){
+      const c=(e.getAttribute('content')||'').toLowerCase();
+      const off=/user-scalable\s*=\s*(no|0)\b/.test(c);
+      const m=c.match(/maximum-scale\s*=\s*([0-9.]+)/); let capped=false; try{capped=!!m&&Number(m[1])<=1}catch(_){}
+      if(off||capped)add('meta-viewport',e);
+    }
+  }
+  const html=deep.find(e=>e.tagName.toLowerCase()==='html');
+  if(html){
+    const title=[...deep].find(e=>e.tagName.toLowerCase()==='title'&&e.parentElement&&(e.parentElement.tagName.toLowerCase()==='head'||e.parentElement.tagName.toLowerCase()==='html'));
+    if(!title||!text(title))add('document-title',html);
+  }
+  const counts={}; for(const [s,els] of Object.entries(byRule))counts[s]=els.length;
+  return {
+    candidates:candidates.map(c=>({signature:c.signature,occurrence:Number(c.occurrence||0),count:counts[c.signature]||0,found:(counts[c.signature]||0)>Number(c.occurrence||0)})),
+    element_count:deep.length,title:document.title,final_url:location.href,ready_state:document.readyState,scroll_height:document.documentElement?.scrollHeight||0
+  };
 }
 ''';
 
-class PlaywrightVerifier(RenderedVerifier):
-    name = "playwright-dom"
+DEFAULT_VIEWPORTS = ((1440, 1000), (390, 844))
 
-    def __init__(self, timeout_ms=20000, settle_ms=1200, headless=True):
-        self.timeout_ms, self.settle_ms, self.headless = timeout_ms, settle_ms, headless
+
+class PlaywrightVerifier(RenderedVerifier):
+    name = "playwright-dom-v2"
+
+    def __init__(self, timeout_ms=20000, settle_ms=1200, headless=True, viewports=None):
+        self.timeout_ms=max(1000,int(timeout_ms)); self.settle_ms=max(0,int(settle_ms)); self.headless=headless
+        self.viewports=tuple(viewports or DEFAULT_VIEWPORTS); self.last_evidence={}
 
     def verify(self, url, findings):
         if not findings:
-            return {}
+            self.last_evidence={"status":"NO_CANDIDATES"}; return {}
         try:
             from playwright.sync_api import sync_playwright
-        except Exception:
-            return {(f["signature"], f["occurrence"]): ERROR for f in findings}
+        except Exception as exc:
+            self.last_evidence={"status":"ERROR","error":type(exc).__name__+": "+str(exc)}
+            return {(f["signature"],f["occurrence"]):ERROR for f in findings}
+        candidates=[{"signature":f["signature"],"occurrence":f["occurrence"]} for f in findings]
+        evidence={"status":"OK","url":url,"viewports":[],"browser":"chromium"}; aggregate={}
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=self.headless)
-                page = browser.new_page(viewport={"width": 1440, "height": 1000})
-                page.goto(url, wait_until="domcontentloaded", timeout=self.timeout_ms)
-                page.wait_for_timeout(self.settle_ms)
-                candidates = [{"signature": f["signature"], "occurrence": f["occurrence"]} for f in findings]
-                result = page.evaluate(JS, candidates)
-                browser.close()
-            return {(r["signature"], r["occurrence"]): (CONFIRMED if r["found"] else NOT_REPRODUCED) for r in result}
-        except Exception:
-            return {(f["signature"], f["occurrence"]): ERROR for f in findings}
+                browser=p.chromium.launch(headless=self.headless)
+                context=browser.new_context(ignore_https_errors=True,service_workers="block",locale="en-US",timezone_id="America/New_York")
+                for width,height in self.viewports:
+                    page=context.new_page(viewport={"width":width,"height":height}); console_errors=[]; page_errors=[]; request_failures=[]
+                    page.on("console",lambda msg: console_errors.append(msg.type) if msg.type=="error" else None)
+                    page.on("pageerror",lambda exc: page_errors.append(str(exc)[:300]))
+                    page.on("requestfailed",lambda req: request_failures.append(req.url[:300]))
+                    try:
+                        response=page.goto(url,wait_until="domcontentloaded",timeout=self.timeout_ms)
+                        page.wait_for_timeout(self.settle_ms)
+                        page.evaluate("window.scrollTo(0, document.body ? document.body.scrollHeight : 0)")
+                        page.wait_for_timeout(min(800,self.settle_ms))
+                        page.evaluate("window.scrollTo(0, 0)")
+                        observed=page.evaluate(OBSERVE_JS,candidates)
+                        for item in observed["candidates"]:
+                            key=(item["signature"],item["occurrence"]); aggregate[key]=aggregate.get(key,False) or bool(item["found"])
+                        evidence["viewports"].append({"width":width,"height":height,"http_status":response.status if response else None,
+                            "final_url":page.url,"title":observed.get("title",""),"ready_state":observed.get("ready_state"),
+                            "element_count":observed.get("element_count",0),"scroll_height":observed.get("scroll_height",0),
+                            "console_error_count":len(console_errors),"page_error_count":len(page_errors),
+                            "request_failure_count":len(request_failures),"page_errors":page_errors[:3]})
+                    finally: page.close()
+                context.close(); browser.close()
+            self.last_evidence=evidence
+            return {key:(CONFIRMED if aggregate.get(key,False) else NOT_REPRODUCED) for key in aggregate}
+        except Exception as exc:
+            evidence["status"]="ERROR"; evidence["error"]=type(exc).__name__+": "+str(exc); self.last_evidence=evidence
+            return {(f["signature"],f["occurrence"]):ERROR for f in findings}
