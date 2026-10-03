@@ -2,6 +2,10 @@
 
 Networked accessibility prospecting scanner for Shopify stores.
 
+## CI verification
+
+Pull requests and scheduled runs execute deterministic rendered tests before the live Chromium scan.
+
 ## Verification pipeline
 
 ShopScan uses a precision-first multi-stage model:
