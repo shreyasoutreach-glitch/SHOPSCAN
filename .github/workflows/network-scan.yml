@@ -26,8 +26,10 @@ jobs:
       - name: Install browser verifier
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-rendered.txt
+          pip install -r requirements-rendered.txt pytest==8.4.2
           python -m playwright install --with-deps chromium
+      - name: Run rendered unit tests
+        run: python -m pytest -q tests/test_rendered.py
       - name: Run ShopScan
         env:
           SHOPSCAN_WORKERS: "2"
