@@ -1,0 +1,88 @@
+"""A11yForge repair engine. Safe source-level repairs only; live storefronts are never mutated."""
+from html import escape
+import re
+
+SAFE = "SAFE_AUTO_REPAIR"
+REVIEW = "REVIEW_REQUIRED"
+UNREPAIRABLE = "UNREPAIRABLE_WITHOUT_SEMANTIC_INPUT"
+
+def _has_attr(tag, name):
+    return re.search(rf"""\s{name}(?:\s*=|\s|>)""", tag, re.I) is not None
+
+def _replace_attr(tag, name, value):
+    pat = re.compile(rf"""\s{name}\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>]+)""", re.I)
+    if pat.search(tag):
+        return pat.sub(f' {name}="{escape(value, quote=True)}"', tag, count=1)
+    return tag[:-1] + f' {name}="{escape(value, quote=True)}">'
+
+def repair_html(source, findings, *, default_language=None):
+    repairs, proposals, out = [], [], source
+    for f in sorted(findings, key=lambda x: int(x.get("off", 0)), reverse=True):
+        rule = f.get("base_rule") or f.get("rule", "")
+        off = int(f.get("off", 0))
+        raw = f.get("snippet", "")
+        length = max(int(f.get("length", 0)), len(raw), 1)
+        if off < 0 or off >= len(out):
+            proposals.append(_proposal(f, REVIEW, "source offset unavailable")); continue
+        chunk = out[off:off + length]
+
+        if rule == "meta-viewport":
+            fixed = re.sub(r"(user-scalable\s*=\s*)(?:no|0)\b", r"\1yes", chunk, flags=re.I)
+            fixed = re.sub(r"(maximum-scale\s*=\s*)(?:[0-9.]+)\b", r"\11.0", fixed, flags=re.I)
+            if fixed != chunk:
+                out = out[:off] + fixed + out[off + len(chunk):]
+                repairs.append(_repair(f, SAFE, "restored user zoom in viewport metadata"))
+            else:
+                proposals.append(_proposal(f, REVIEW, "viewport value could not be safely located"))
+
+        elif rule == "image-alt":
+            if _has_attr(chunk, "alt"):
+                continue
+            decorative = re.search(r'''\baria-hidden\s*=\s*["']true["']''', chunk, re.I) or re.search(
+                r'''\brole\s*=\s*["'](?:presentation|none)["']''', chunk, re.I)
+            if decorative and chunk.rstrip().endswith(">"):
+                fixed = chunk[:-1] + ' alt="">'
+                out = out[:off] + fixed + out[off + len(chunk):]
+                repairs.append(_repair(f, SAFE, "marked explicitly decorative image with empty alt"))
+            else:
+                proposals.append(_proposal(f, UNREPAIRABLE, "meaningful alternative text requires human/content context"))
+
+        elif rule == "html-has-lang":
+            if default_language:
+                m = re.search(r"<html\b[^>]*>", source, re.I)
+                if m and not _has_attr(m.group(0), "lang"):
+                    tag = _replace_attr(m.group(0), "lang", default_language)
+                    s, e = m.span()
+                    out = out[:s] + tag + out[e:]
+                    repairs.append(_repair(f, SAFE, f"declared configured document language: {default_language}"))
+                else:
+                    proposals.append(_proposal(f, REVIEW, "html language was not safely inferable"))
+            else:
+                proposals.append(_proposal(f, UNREPAIRABLE, "document language must be supplied or verified"))
+
+        elif rule == "document-title":
+            title = re.search(r"<title\b[^>]*>(.*?)</title\s*>", source, re.I | re.S)
+            site = re.search(r'''<meta\b[^>]*property\s*=\s*["']og:site_name["'][^>]*content\s*=\s*["']([^"']+)''', source, re.I)
+            if title and not re.sub(r"<[^>]+>", "", title.group(1)).strip() and site:
+                fixed = f"<title>{escape(site.group(1).strip())}</title>"
+                s, e = title.span()
+                out = out[:s] + fixed + out[e:]
+                repairs.append(_repair(f, SAFE, "filled empty title from og:site_name"))
+            else:
+                proposals.append(_proposal(f, REVIEW, "no authoritative page title was available"))
+
+        elif rule in ("label", "button-name", "link-name", "frame-title"):
+            proposals.append(_proposal(f, UNREPAIRABLE,
+                "accessible naming requires semantic context; A11yForge will not invent copy"))
+        else:
+            proposals.append(_proposal(f, REVIEW, "rule has no conservative automatic transform"))
+
+    return {"html": out, "repairs": repairs, "proposals": proposals, "changed": out != source}
+
+def _repair(f, confidence, action):
+    return {"rule": f.get("base_rule") or f.get("rule"), "confidence": confidence,
+            "action": action, "signature": f.get("signature"), "occurrence": f.get("occurrence", 0)}
+
+def _proposal(f, confidence, reason):
+    return {"rule": f.get("base_rule") or f.get("rule"), "confidence": confidence,
+            "reason": reason, "signature": f.get("signature"), "occurrence": f.get("occurrence", 0)}
