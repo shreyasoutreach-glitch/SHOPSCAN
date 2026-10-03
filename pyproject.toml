@@ -1,0 +1,9 @@
+[project]
+name = "shopscan"
+version = "1.1.0"
+requires-python = ">=3.9"
+description = "Precision-first static accessibility prospecting for Shopify stores (standard library only)"
+
+[tool.ruff]
+line-length = 140
+target-version = "py39"
