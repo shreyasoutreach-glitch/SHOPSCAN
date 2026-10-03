@@ -30,11 +30,11 @@ JS = r'''
     if(r==='link-name')return t==='a'&&e.hasAttribute('href')&&!named(e);
     if(r==='frame-title')return(t==='iframe'||t==='frame')&&!named(e);
     if(r==='html-has-lang')return t==='html'&&!((e.getAttribute('lang')||e.getAttribute('xml:lang')||'').trim());
-    if(r==='document-title')return t==='html'&&!document.title.trim();
+    if(r==='document-title')return t==='html'&&!document.title.trim();if(r==='meta-viewport'){if(t!=='meta'||(e.getAttribute('name')||'').toLowerCase()!=='viewport')return false;const c=(e.getAttribute('content')||'').toLowerCase();return /user-scalable\\s*=\\s*(no|0)\\b/.test(c)||/(^|[;,]\\s*)maximum-scale\\s*=\\s*[0-9.]+/.test(c)&&Number((c.match(/maximum-scale\\s*=\\s*([0-9.]+)/)||[])[1]||99)<=1}
     return false;
   });
   const seen=new Map();
-  for(const r of ['image-alt','label','button-name','link-name','frame-title','html-has-lang','document-title'])
+  for(const r of ['image-alt','label','button-name','link-name','frame-title','html-has-lang','document-title','meta-viewport'])
     for(const e of matches(r)){const s=r+'|'+e.tagName.toLowerCase()+'|'+shape(e);seen.set(s,(seen.get(s)||0)+1)}
   return candidates.map(c=>({signature:c.signature,occurrence:c.occurrence,found:(seen.get(c.signature)||0)>Number(c.occurrence||0)}));
 }
