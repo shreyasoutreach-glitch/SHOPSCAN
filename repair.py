@@ -32,6 +32,35 @@ def _semantic_record(f, proposal):
         "occurrence": f.get("occurrence", 0),
     }
 
+def _empty_aria_label_proposal(source, finding):
+    from dom import Tree, walk
+    tree = Tree(source)
+    off = int(finding.get("off", -1))
+    node = next((n for n in walk(tree.root) if n.off == off), None)
+    if node is None:
+        return {"confidence": REVIEW, "reason": "source node could not be resolved", "evidence": []}
+    if node.attrs.get("aria-label", "").strip():
+        return {"confidence": REVIEW, "reason": "aria-label is no longer empty in source", "evidence": []}
+    visible = " ".join(" ".join(node.text).split())
+    if visible:
+        return {"confidence": SAFE, "reason": "remove empty aria-label so the element native visible name can be computed", "evidence": ["visible text content"]}
+    if node.tag in ("input","textarea","select") and node.attrs.get("id"):
+        if any(n.tag=="label" and n.attrs.get("for")==node.attrs.get("id") for n in walk(tree.root)):
+            return {"confidence": SAFE, "reason": "remove empty aria-label so the associated label can name the control", "evidence": ["label-for"]}
+    return {"confidence": UNREPAIRABLE, "reason": "removing the empty aria-label would not expose a known name source", "evidence": ["no visible or associated label source"]}
+
+def _apply_remove_attr(source, finding, name):
+    import re
+    off=int(finding.get("off",-1))
+    if off<0 or off>=len(source):
+        return source, False
+    end=min(len(source),off+max(int(finding.get("length",0)),len(finding.get("snippet","")),1))
+    tag=source[off:end]
+    fixed=re.sub(r"\s"+re.escape(name)+r"\s*=\s*"+"\"[^\"]*\"", "", tag, count=1, flags=re.I)
+    fixed=re.sub(r"\s"+re.escape(name)+r"\s*=\s*"+chr(39)+r"[^"+chr(39)+r"]*"+chr(39), "", fixed, count=1, flags=re.I)
+    if fixed==tag:
+        return source,False
+    return source[:off]+fixed+source[end:],True
 def repair_html(source, findings, *, default_language=None):
     repairs, proposals, out = [], [], source
     for f in sorted(findings, key=lambda x: int(x.get("off", 0)), reverse=True):
@@ -43,6 +72,18 @@ def repair_html(source, findings, *, default_language=None):
             proposals.append(_proposal(f, REVIEW, "source offset unavailable")); continue
         chunk = out[off:off + length]
 
+        if rule == "empty-aria-label":
+            proposal = _empty_aria_label_proposal(source, f)
+            if proposal.get("confidence") == SAFE:
+                repaired, changed = _apply_remove_attr(out, f, "aria-label")
+                if changed:
+                    out = repaired
+                    repairs.append(_semantic_record(f, proposal))
+                else:
+                    proposals.append(_semantic_record(f, {**proposal, "confidence": REVIEW, "reason": "empty aria-label could not be removed safely"}))
+            else:
+                proposals.append(_semantic_record(f, proposal))
+            continue
         if rule in ("image-alt", "label", "button-name", "link-name", "frame-title", "html-has-lang", "document-title"):
             proposal = infer_semantic(source, f)
             if rule == "html-has-lang" and default_language and proposal.get("confidence") == UNREPAIRABLE:
