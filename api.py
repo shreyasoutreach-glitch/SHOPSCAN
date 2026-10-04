@@ -15,6 +15,7 @@ from scan import analyze
 from client_package import build_client_package
 from repair import repair_html
 from persistence import save_scan, configured, init_schema
+from crawl import discover
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -109,6 +110,7 @@ if FastAPI:
                 "repeat_load_status": "PENDING",
                 "http_status": first["status"],
                 "fetch_ms": round(first["elapsed"] * 1000),
+                "discovered_pages": discover(first["final"], src, max_pages=max(1, min(4, int(os.getenv("A11YFORGE_CRAWL_PAGES", "4"))))),
             })
 
             second = fetcher.page(first["final"])
