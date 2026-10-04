@@ -1,12 +1,18 @@
 services:
   - type: web
-    name: a11yforge-api
-    runtime: python
+    name: a11yforge-api-docker
+    runtime: docker
     region: singapore
-    plan: starter
-    buildCommand: pip install -r requirements-api.txt && pip install -r requirements-rendered.txt && python -m playwright install --with-deps chromium
-    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    plan: free
+    dockerfilePath: ./Dockerfile
     autoDeploy: true
+    healthCheckPath: /health
     envVars:
       - key: A11YFORGE_CORS
         sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: A11YFORGE_CRAWL_PAGES
+        value: "4"
+      - key: A11YFORGE_RATE_LIMIT
+        value: "12"
