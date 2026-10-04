@@ -111,7 +111,9 @@ def _figure_caption(node):
     for a in _ancestors(node):
         if a.tag == "figure":
             caps = [c for c in a.children if c.tag == "figcaption"]
-            if len(caps) == 1:
+            imgs = [c for c in a.children if c.tag == "img"]
+            other = [c for c in a.children if c.tag not in ("img", "figcaption") and _text(c)]
+            if len(caps) == 1 and len(imgs) == 1 and not other and imgs[0] is node:
                 t = _text(caps[0])
                 if 1 <= len(t) <= 160:
                     return t
