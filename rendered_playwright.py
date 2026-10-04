@@ -76,7 +76,7 @@ OBSERVE_JS = r'''
   for(const e of deep){const id=e.getAttribute("id");if(id) (ids[id]??=[]).push(e);}
   for(const e of deep){
     if(e.hasAttribute("id")&&ids[e.getAttribute("id")]?.length>1)add("duplicate-id",e);
-    for(const attr of ["aria-labelledby","aria-describedby","aria-controls","aria-owns","aria-activedescendant"]){
+    for(const attr of ["aria-labelledby","aria-describedby","aria-owns","aria-activedescendant"]){
       const raw=(e.getAttribute(attr)||"").trim(); if(!raw)continue;
       const missing=raw.split(/\s+/).some(id=>!document.getElementById(id));
       if(missing)add("aria-reference",e);
