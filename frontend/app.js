@@ -69,16 +69,20 @@ function renderDashboard(){
 }
 
 function getFindings(){return lastScan?.package?.work_queue||[]}
+function getCandidates(){return lastScan?.package?.candidate_work_queue||lastScan?.result?.candidate_findings||[]}
 
 function renderResult(data){
-  const r=data.result||{}, findings=getFindings(), score=findings.reduce((n,f)=>n+(f.impact==="critical"?14:f.impact==="serious"?9:f.impact==="moderate"?5:1),0), repairs=data.repair?.repairs||data.package?.repairs||[];
-  result.className="result-card card";
-  result.innerHTML='<div class="result-top"><div><span class="eyebrow">'+(r.rendered_status==="OK"?"VERIFIED ASSESSMENT":"ASSESSMENT WITH VERIFICATION LIMIT")+'</span><h3>'+escapeHtml(r.domain||r.url||"Merchant")+'</h3><p class="muted">'+(r.rendered_status==="OK"?"Chromium verification passed":"Browser verification: "+escapeHtml(r.rendered_status||"unknown"))+" · "+findings.length+' verified findings</p></div><div><span class="eyebrow">RISK POINTS</span><div class="score">'+score+'</div></div></div>'+
-    '<div class="result-actions"><a class="button primary" href="#findings">View '+findings.length+' findings</a><a class="button" href="#evidence">Open evidence</a><a class="button" href="#repairs">Open repairs</a><button class="button" id="rescan-button" type="button">Scan another store</button></div>'+
-    '<div style="margin-top:20px">'+(findings.length?findings.map(f=>findingMarkup(f)).join(""):'<div class="empty"><h2>No verified findings</h2><p>The engine did not retain a finding after browser verification.</p></div>')+'</div>';
-  document.getElementById("rescan-button")?.addEventListener("click",()=>{location.hash="scan";document.getElementById("url")?.focus()});
+  const r=data.result||{}, findings=getFindings(), candidates=getCandidates(), display=findings.length?findings:candidates;
+  const score=findings.reduce((n,f)=>n+(f.impact==='critical'?14:f.impact==='serious'?9:f.impact==='moderate'?5:1),0);
+  result.className='result-card card';
+  const limited=r.rendered_status&&r.rendered_status!=='OK';
+  const label=limited?'ASSESSMENT WITH VERIFICATION LIMIT':'VERIFIED ASSESSMENT';
+  const copy=limited?(candidates.length+' static candidates retained for remediation; browser verification is '+escapeHtml(r.rendered_status||'limited')):(findings.length+' verified findings');
+  result.innerHTML='<div class="result-top"><div><span class="eyebrow">'+label+'</span><h3>'+escapeHtml(r.domain||r.url||'Merchant')+'</h3><p class="muted">'+copy+'</p></div><div><span class="eyebrow">RISK POINTS</span><div class="score">'+score+'</div></div></div>'+
+    '<div class="result-actions"><a class="button primary" href="#findings">View '+display.length+' '+(findings.length?'findings':'candidates')+'</a><a class="button" href="#evidence">Open evidence</a><a class="button" href="#repairs">Open repairs</a><button class="button" id="rescan-button" type="button">Scan another store</button></div>'+
+    '<div style="margin-top:20px">'+(display.length?display.map(f=>findingMarkup(f)).join(''):'<div class="empty"><h2>No accessibility candidates</h2><p>The current rule engine found nothing in scope.</p></div>')+'</div>';
+  document.getElementById('rescan-button')?.addEventListener('click',()=>{location.hash='scan';document.getElementById('url')?.focus()});
 }
-
 function findingMarkup(f,i){
   const evidence=f.evidence||f.rendered_evidence||{};
   return '<article class="finding card" data-index="'+i+'"><div class="finding-main"><div class="sev">'+escapeHtml(f.impact||"moderate")+'</div><div><p class="finding-rule">'+escapeHtml(f.rule||f.base_rule||"Accessibility finding")+'</p><code>'+escapeHtml((f.snippet||"No source snippet retained").slice(0,240))+'</code></div><div class="priority">Priority '+escapeHtml(f.priority_score??"review")+'</div></div><div class="finding-detail"><span>Confidence: '+escapeHtml(f.confidence||"verified")+'</span><span>Action: '+escapeHtml(f.action||"review")+'</span><span>Evidence: '+escapeHtml(evidence.status||"browser verified")+'</span><button class="button small copy-finding" type="button">Copy finding</button></div></article>';
@@ -87,7 +91,7 @@ function findingMarkup(f,i){
 function renderFindings(){
   const el=document.getElementById("findings-list"), findings=getFindings();
   if(!lastScan){el.innerHTML='<div class="empty card"><span class="eyebrow">NO ACTIVE SCAN</span><h2>Nothing to review yet</h2><p>Run a verified scan first. Findings will populate this queue automatically.</p><a class="button primary" href="#scan">Start scan</a></div>';return}
-  if(!findings.length){el.innerHTML='<div class="empty card"><span class="eyebrow">CLEAN VERIFICATION</span><h2>No verified findings</h2><p>The browser verification gate rejected every candidate from this scan.</p></div>';return}
+  if(!findings.length){const candidates=getCandidates();if(!candidates.length){el.innerHTML='<div class="empty card"><span class="eyebrow">CLEAN VERIFICATION</span><h2>No verified findings</h2><p>No candidate was found in the current scan scope.</p></div>';return}el.innerHTML='<div class="status error">Browser verification is limited. These are static candidates, not verified findings.</div>'+candidates.map((f,i)=>findingMarkup(f,i)).join('');return}
   el.innerHTML=findings.map((f,i)=>findingMarkup(f,i)).join("");
   el.querySelectorAll(".copy-finding").forEach((btn,i)=>btn.addEventListener("click",async()=>{
     const f=findings[i];
@@ -118,7 +122,7 @@ function renderRepairs(){
 function renderEvidence(){
   const el=document.getElementById("evidence-list");
   if(!lastScan){el.innerHTML='<div class="empty card"><span class="eyebrow">NO LEDGER</span><h2>No scan evidence yet</h2><p>Run a scan to create a retained evidence record.</p><a class="button primary" href="#scan">Start scan</a></div>';return}
-  const r=lastScan.result||{}, findings=getFindings(), evidence=r.rendered_evidence||r.evidence||{};
+  const r=lastScan.result||{}, findings=getFindings(), candidates=getCandidates(), evidence=r.rendered_evidence||r.evidence||{};
   el.innerHTML='<div class="card evidence-card"><div class="card-head"><div><span class="eyebrow">SCAN RECORD</span><h3>'+escapeHtml(r.domain||r.url||"Merchant")+'</h3></div><span class="tag">'+escapeHtml(r.rendered_status||"VERIFIED")+'</span></div><div class="evidence-grid">'+
     '<div><span>Scan ID</span><strong>'+escapeHtml(lastScan.scan_id||"n/a")+'</strong></div>'+
     '<div><span>Final URL</span><strong>'+escapeHtml(evidence.final_url||r.url||"n/a")+'</strong></div>'+
