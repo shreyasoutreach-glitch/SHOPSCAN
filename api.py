@@ -293,6 +293,7 @@ if FastAPI:
             result["persistence_status"] = persistence_status
             result["evidence_ledger"] = assessment_ledger(result)
             result["evidence_head_hash"] = result["evidence_ledger"].get("head_hash")
+            package = build_client_package(result, repair_result)
 
             return {
                 "scan_id": scan_id,
