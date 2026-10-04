@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 from fetch import Fetcher
 from scan import analyze
 from rendered_playwright import PlaywrightVerifier, CONFIRMED, ERROR
+from overlay_signatures import detect_source_overlays
 
 def assess_pages(start_url, discovered_pages, fetcher=None, max_pages=4):
     pages=[]
@@ -51,6 +52,7 @@ def assess_pages(start_url, discovered_pages, fetcher=None, max_pages=4):
                 item={**f,"url":first["final"],"rendered_verification":status}
                 if status==CONFIRMED: confirmed.append(item)
                 else: candidates.append(item)
+            dynamic=getattr(verifier,"last_dynamic_findings",[])
             row.update({
                 "status":"OK",
                 "final_url":first["final"],
@@ -63,6 +65,8 @@ def assess_pages(start_url, discovered_pages, fetcher=None, max_pages=4):
                 "rendered_status":verifier.last_evidence.get("status","UNKNOWN"),
                 "rendered_evidence":verifier.last_evidence,
                 "limitations":a.get("limitations",[]),
+                "dynamic_findings":dynamic,
+                "overlay_evidence":{"source":[{"vendor":v,"confidence":"MEDIUM","signals":["static-signature"],"source_observed":True,"runtime_observed":False} for v in a.get("context",{}).get("overlays",[])]},
             })
         except Exception as exc:
             row["error"]=type(exc).__name__+": "+str(exc)[:300]
