@@ -1,4 +1,3 @@
-""
 CREATE TABLE IF NOT EXISTS scan_runs (
     id TEXT PRIMARY KEY,
     created_at TIMESTAMPTZ NOT NULL,
