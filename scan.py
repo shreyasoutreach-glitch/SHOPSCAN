@@ -60,7 +60,7 @@ def analyze(src, url="", headers=None):
         if not html_n.attrs.get("lang", "").strip() and not html_n.attrs.get("xml:lang", "").strip(): record(html_n, "html-has-lang", "html-has-lang")
         titles = [n for n in nodes if n.tag == "title" and n.parent is not None and n.parent.tag in ("head", "html")]
         if not titles: record(html_n, "document-title", "document-title")
-        elif not "".join(titles[0].text).strip(): record(titles[0], "document-title", "document-title")
+        elif not "".join(titles[0].text).strip(): record(html_n, "document-title", "document-title")
     for n in nodes:
         if n.tag == "meta" and n.attrs.get("name", "").strip().lower() == "viewport":
             c = n.attrs.get("content", "").lower(); zoom_off = re.search(r"user-scalable\s*=\s*(no|0)\b", c); m = re.search(r"maximum-scale\s*=\s*([0-9.]+)", c)
