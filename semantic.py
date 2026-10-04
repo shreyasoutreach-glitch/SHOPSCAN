@@ -93,7 +93,7 @@ def _semantic_token(node):
     for key in ("data-action", "data-testid", "data-test", "data-name", "name", "id"):
         value = _token(node.attrs.get(key, ""))
         parts = value.split("-") if value else []
-        for token, label in ROUTE_NAMES.items():
+        for token, label in sorted(ROUTE_NAMES.items(), key=lambda item: -len(item[0].replace("_", "-").split("-"))):
             wanted = token.replace("_", "-").split("-")
             if wanted and any(parts[i:i + len(wanted)] == wanted for i in range(max(0, len(parts) - len(wanted) + 1))):
                 return label, key, value
@@ -271,7 +271,10 @@ def apply_semantic(source, finding, proposal):
     tag = source[off:end]
     if not tag.lstrip().startswith("<") or ">" not in tag:
         return source, False
-    fixed = _replace_or_add(tag, proposal["attribute"], proposal["value"])
+    open_end = tag.find(">") + 1
+    opening, suffix = tag[:open_end], tag[open_end:]
+    fixed_open = _replace_or_add(opening, proposal["attribute"], proposal["value"])
+    fixed = fixed_open + suffix
     if fixed == tag:
         return source, False
     return source[:off] + fixed + source[end:], True
