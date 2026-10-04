@@ -172,6 +172,38 @@ if FastAPI:
                 result["interaction_evidence"] = interaction_evidence
                 result["interaction_status"] = interaction_evidence.get("status", "UNKNOWN")
                 result["findings"].extend(interaction_findings)
+
+            # Scan the bounded same-origin page set discovered from the storefront homepage.
+            # The homepage is already represented above, so only additional pages are merged.
+            try:
+                from multipage import assess_pages
+                page_reports = assess_pages(
+                    first["final"],
+                    result.get("discovered_pages", []),
+                    fetcher=fetcher,
+                    max_pages=max(1, min(4, int(os.getenv("A11YFORGE_CRAWL_PAGES", "4")))),
+                )
+                result["page_reports"] = page_reports
+                result["scanned_pages"] = len(page_reports)
+                for page_report in page_reports:
+                    final_url = page_report.get("final_url") or page_report.get("url")
+                    if final_url == first["final"]:
+                        continue
+                    for finding in page_report.get("verified_findings", []):
+                        finding["source_page"] = final_url
+                        finding["source_repairable"] = False
+                        result["findings"].append(finding)
+                    for finding in page_report.get("candidate_findings", []):
+                        finding["source_page"] = final_url
+                        finding["source_repairable"] = False
+                        result.setdefault("candidate_findings", []).append(finding)
+            except Exception as exc:
+                result["page_reports"] = []
+                result["scanned_pages"] = 1
+                result["multipage_status"] = "ERROR"
+                result["multipage_error"] = type(exc).__name__ + ": " + str(exc)[:300]
+            else:
+                result["multipage_status"] = "OK"
             except Exception as exc:
                 result["interaction_findings"] = []
                 result["interaction_status"] = "ERROR"
