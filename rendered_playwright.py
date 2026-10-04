@@ -6,6 +6,7 @@ fails conservatively when the browser cannot produce a trustworthy observation.
 """
 from rendered import RenderedVerifier, CONFIRMED, NOT_REPRODUCED, ERROR
 from fetch import is_public_url
+from urllib.parse import urlsplit
 
 OBSERVE_JS = r'''
 (candidates) => {
