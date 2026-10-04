@@ -106,10 +106,7 @@ if FastAPI:
             src = first["body"].decode(first.get("charset") or "utf-8", "replace")
             result = analyze(src, first["final"], first["headers"])
             result["scanner_version"] = "1.6.0"
-            result["overlay_evidence"] = {"source": detect_source_overlays(
-                script_urls=result.get("context",{}).get("links",[]),
-                markers=result.get("context",{}).get("overlays",[])
-            )}
+            result["overlay_evidence"] = {"source": [{"vendor":v,"confidence":"MEDIUM","signals":["static-signature"],"source_observed":True,"runtime_observed":False} for v in result.get("context",{}).get("overlays",[])]}
             result.update({
                 "url": first["final"],
                 "domain": urlsplit(first["final"]).hostname,
@@ -138,6 +135,7 @@ if FastAPI:
                 result["repeat_load_status"] = "FAILED"
                 result["repeat_load_error"] = second.get("error") or second["state"]
 
+            verifier = None
             try:
                 from rendered_playwright import PlaywrightVerifier, CONFIRMED, ERROR
 
