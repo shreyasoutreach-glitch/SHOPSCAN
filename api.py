@@ -4,6 +4,8 @@ Thin API layer over the verified scanning engine. The UI never contains scanning
 """
 import os
 import re
+import threading
+import time
 from datetime import datetime, timezone
 from uuid import uuid4
 from urllib.parse import urlsplit
@@ -14,7 +16,7 @@ from client_package import build_client_package
 from repair import repair_html
 
 try:
-    from fastapi import FastAPI, HTTPException
+    from fastapi import FastAPI, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel, Field
 except ImportError:
@@ -37,6 +39,27 @@ if FastAPI:
     class ScanRequest(BaseModel):
         url: str = Field(min_length=4, max_length=2048)
 
+    _scan_slots = threading.BoundedSemaphore(2)
+    _rate_lock = threading.Lock()
+    _rate_window = {}
+
+    def _allow_request(client_key):
+        now = time.time()
+        limit = max(1, int(os.getenv("A11YFORGE_RATE_LIMIT", "12")))
+        with _rate_lock:
+            bucket = [t for t in _rate_window.get(client_key, []) if now - t < 60]
+            if len(bucket) >= limit:
+                _rate_window[client_key] = bucket
+                return False
+            bucket.append(now)
+            _rate_window[client_key] = bucket
+            if len(_rate_window) > 2000:
+                stale = [k for k, values in _rate_window.items() if not values or now - values[-1] >= 60]
+                for key in stale[:1000]:
+                    _rate_window.pop(key, None)
+            return True
+
+
     def normalize_url(value: str) -> str:
         value = value.strip()
         if not re.match(r"^https?://", value, re.I):
@@ -55,7 +78,12 @@ if FastAPI:
         return {"ok": True, "product": "A11yForge", "version": "1.4.0"}
 
     @app.post("/api/scan")
-    def scan(req: ScanRequest):
+    def scan(req: ScanRequest, request: Request):
+        client_key = request.client.host if request.client else "unknown"
+        if not _allow_request(client_key):
+            raise HTTPException(status_code=429, detail="Scan rate limit reached. Try again in a minute.")
+        if not _scan_slots.acquire(blocking=False):
+            raise HTTPException(status_code=429, detail="Scanner is at capacity. Try again shortly.")
         try:
             url = normalize_url(req.url)
             fetcher = Fetcher(delay=0.4, timeout=20, max_bytes=3_000_000)
@@ -153,5 +181,7 @@ if FastAPI:
                 status_code=500,
                 detail="Scanner failed safely. Check server logs for the diagnostic.",
             )
+        finally:
+            _scan_slots.release()
 else:
     app = None
