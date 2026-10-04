@@ -77,10 +77,10 @@ function renderResult(data){
   result.className='result-card card';
   const limited=r.rendered_status&&r.rendered_status!=='OK';
   const label=limited?'ASSESSMENT WITH VERIFICATION LIMIT':'VERIFIED ASSESSMENT';
-  const interactionCount=r.interaction_findings?.length||0; const pageCount=r.scanned_pages||1; const copy=limited?(candidates.length+' static candidates retained for remediation; browser verification is '+escapeHtml(r.rendered_status||'limited')):(findings.length+' verified findings')+' · '+interactionCount+' interaction findings · '+pageCount+' pages scanned';
+  const interactionCount=r.interaction_findings?.length||0; const pageCount=r.scanned_pages||1; const overlays=(r.overlay_evidence?.runtime||[]).map(x=>x.vendor).filter(Boolean); const copy=limited?(candidates.length+' static candidates retained for remediation; browser verification is '+escapeHtml(r.rendered_status||'limited')):(findings.length+' verified findings')+' · '+interactionCount+' interaction findings · '+pageCount+' pages scanned';
   result.innerHTML='<div class="result-top"><div><span class="eyebrow">'+label+'</span><h3>'+escapeHtml(r.domain||r.url||'Merchant')+'</h3><p class="muted">'+copy+'</p></div><div><span class="eyebrow">RISK POINTS</span><div class="score">'+score+'</div></div></div>'+
     '<div class="result-actions"><a class="button primary" href="#findings">View '+display.length+' '+(findings.length?'findings':'candidates')+'</a><a class="button" href="#evidence">Open evidence</a><a class="button" href="#repairs">Open repairs</a><button class="button" id="rescan-button" type="button">Scan another store</button></div>'+
-    '<div style="margin-top:20px">'+(display.length?display.map(f=>findingMarkup(f)).join(''):'<div class="empty"><h2>No accessibility candidates</h2><p>The current rule engine found nothing in scope.</p></div>')+'</div>';
+    '<div style="margin-top:20px"><div class="card" style="margin-bottom:16px"><span class="eyebrow">OVERLAY TRUTH TEST</span><p class="muted">'+(overlays.length?('Detected: '+escapeHtml(overlays.join(', '))):'No supported overlay signature observed')+' · Evidence hash: '+escapeHtml(r.evidence_head_hash||'pending')+'</p></div>'+(display.length?display.map(f=>findingMarkup(f)).join(''):'<div class="empty"><h2>No accessibility candidates</h2><p>The current rule engine found nothing in scope.</p></div>')+'</div>';
   document.getElementById('rescan-button')?.addEventListener('click',()=>{location.hash='scan';document.getElementById('url')?.focus()});
 }
 function findingMarkup(f,i){
