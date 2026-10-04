@@ -91,10 +91,11 @@ def _token(value):
 def _semantic_token(node):
     for key in ("data-action", "data-testid", "data-test", "data-name", "name", "id"):
         value = _token(node.attrs.get(key, ""))
-        if value:
-            for token, label in ROUTE_NAMES.items():
-                if token in value:
-                    return label, key, value
+        parts = value.split("-") if value else []
+        for token, label in ROUTE_NAMES.items():
+            wanted = token.replace("_", "-").split("-")
+            if wanted and any(parts[i:i + len(wanted)] == wanted for i in range(max(0, len(parts) - len(wanted) + 1))):
+                return label, key, value
     return None
 
 def _nearest_heading(node):
@@ -133,10 +134,12 @@ def _route_label(node):
 def _field_label(node):
     for key in ("autocomplete", "name", "id", "data-field", "data-name"):
         raw = _token(node.attrs.get(key, ""))
-        if raw in FIELD_NAMES:
-            return FIELD_NAMES[raw], key, raw
+        if not raw:
+            continue
+        parts = raw.split("-")
         for token, label in FIELD_NAMES.items():
-            if raw == token or raw.endswith("-" + token):
+            wanted = token.split("-")
+            if parts[-len(wanted):] == wanted:
                 return label, key, raw
     return None
 
