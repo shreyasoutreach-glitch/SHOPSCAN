@@ -9,9 +9,10 @@ import re
 from urllib.parse import urlsplit
 from dom import Tree, walk, ws
 
-SAFE = "SAFE_AUTO_REPAIR"
+SAFE_AUTO_REPAIR = "SAFE_AUTO_REPAIR"
 REVIEW = "REVIEW_REQUIRED"
 UNREPAIRABLE = "UNREPAIRABLE_WITHOUT_SEMANTIC_INPUT"
+SAFE = SAFE_AUTO_REPAIR
 
 ROUTE_NAMES = {
     "cart": "Cart", "basket": "Cart", "bag": "Shopping bag",
