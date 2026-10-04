@@ -52,14 +52,14 @@ PROVIDER_IFRAME_NAMES = (
 )
 
 def _clean(value):
-    return re.sub(r"\\s+", " ", value or "").strip()
+    return re.sub(r"\s+", " ", value or "").strip()
 
 def _attr(tag, name):
     m = re.search(rf"""\\b{re.escape(name)}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>]+))""", tag, re.I)
     return _clean(next((g for g in m.groups() if g is not None), "")) if m else ""
 
 def _replace_or_add(tag, name, value):
-    pat = re.compile(rf"""\\s{re.escape(name)}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s"'=<>]+)""", re.I)
+    pat = re.compile(rf"""\s{re.escape(name)}\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>]+)""", re.I)
     replacement = f' {name}="{escape(value, quote=True)}"'
     if pat.search(tag):
         return pat.sub(replacement, tag, count=1)
@@ -88,7 +88,7 @@ def _ancestors(n):
     return out
 
 def _token(value):
-    value = re.sub(r"([a-z])([A-Z])", r"\\1-\\2", value or "")
+    value = re.sub(r"([a-z])([A-Z])", r"\1-\2", value or "")
     value = re.sub(r"[^a-zA-Z0-9]+", "-", value).strip("-").lower()
     return value
 
