@@ -77,7 +77,7 @@ function renderResult(data){
   result.className='result-card card';
   const limited=r.rendered_status&&r.rendered_status!=='OK';
   const label=limited?'ASSESSMENT WITH VERIFICATION LIMIT':'VERIFIED ASSESSMENT';
-  const copy=limited?(candidates.length+' static candidates retained for remediation; browser verification is '+escapeHtml(r.rendered_status||'limited')):(findings.length+' verified findings');
+  const interactionCount=r.interaction_findings?.length||0; const pageCount=r.scanned_pages||1; const copy=limited?(candidates.length+' static candidates retained for remediation; browser verification is '+escapeHtml(r.rendered_status||'limited')):(findings.length+' verified findings')+' · '+interactionCount+' interaction findings · '+pageCount+' pages scanned';
   result.innerHTML='<div class="result-top"><div><span class="eyebrow">'+label+'</span><h3>'+escapeHtml(r.domain||r.url||'Merchant')+'</h3><p class="muted">'+copy+'</p></div><div><span class="eyebrow">RISK POINTS</span><div class="score">'+score+'</div></div></div>'+
     '<div class="result-actions"><a class="button primary" href="#findings">View '+display.length+' '+(findings.length?'findings':'candidates')+'</a><a class="button" href="#evidence">Open evidence</a><a class="button" href="#repairs">Open repairs</a><button class="button" id="rescan-button" type="button">Scan another store</button></div>'+
     '<div style="margin-top:20px">'+(display.length?display.map(f=>findingMarkup(f)).join(''):'<div class="empty"><h2>No accessibility candidates</h2><p>The current rule engine found nothing in scope.</p></div>')+'</div>';
@@ -126,7 +126,9 @@ function renderEvidence(){
   el.innerHTML='<div class="card evidence-card"><div class="card-head"><div><span class="eyebrow">SCAN RECORD</span><h3>'+escapeHtml(r.domain||r.url||"Merchant")+'</h3></div><span class="tag">'+escapeHtml(r.rendered_status||"VERIFIED")+'</span></div><div class="evidence-grid">'+
     '<div><span>Scan ID</span><strong>'+escapeHtml(lastScan.scan_id||"n/a")+'</strong></div>'+
     '<div><span>Final URL</span><strong>'+escapeHtml(evidence.final_url||r.url||"n/a")+'</strong></div>'+
-    '<div><span>Findings</span><strong>'+findings.length+'</strong></div>'+
+    '<div><span>Verified findings</span><strong>'+findings.length+'</strong></div>'+\
+    '<div><span>Interaction findings</span><strong>'+(r.interaction_findings?.length||0)+'</strong></div>'+\
+    '<div><span>Pages scanned</span><strong>'+(r.scanned_pages||1)+'</strong></div>'+
     '<div><span>HTTP status</span><strong>'+escapeHtml(evidence.http_status||"n/a")+'</strong></div>'+
     '</div><details><summary>Raw evidence</summary><pre>'+escapeHtml(JSON.stringify({result:r,findings},null,2))+'</pre></details><div class="result-actions"><button class="button primary" id="download-evidence" type="button">Export evidence JSON</button><a class="button" href="#findings">Open findings</a></div></div>';
   document.getElementById("download-evidence")?.addEventListener("click",()=>{
