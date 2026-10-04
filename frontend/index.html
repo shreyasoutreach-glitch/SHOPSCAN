@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A11yForge | Accessibility Intelligence</title>
+<meta name="description" content="Verified accessibility intelligence and remediation workflow for ecommerce.">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="app-shell">
+<aside class="sidebar">
+  <div class="brand"><div class="brand-mark">A</div><div><strong>A11yForge</strong><span>Accessibility OS</span></div></div>
+  <nav>
+    <a href="#dashboard" data-route="dashboard" class="active">Overview</a>
+    <a href="#scan" data-route="scan">New scan</a>
+    <a href="#findings" data-route="findings">Findings</a>
+    <a href="#evidence" data-route="evidence">Evidence</a>
+  </nav>
+  <div class="side-note"><span class="pulse"></span> Verification engine online</div>
+</aside>
+<main>
+<header class="topbar"><div><span class="eyebrow">Merchant workspace</span><h1 id="page-title">Overview</h1></div><a class="button primary" href="#scan">+ Scan a store</a></header>
+<section id="view-dashboard" class="view">
+  <div class="hero card"><div><span class="eyebrow">PRODUCTION ENGINE</span><h2>Find real accessibility barriers.<br><em>Prove them. Fix them.</em></h2><p>Static analysis, Chromium verification and evidence-backed remediation in one workflow.</p><a class="button primary" href="#scan">Run your first scan</a></div><div class="hero-orbit"><div class="orbit-core">A11y</div><div class="orbit o1">VERIFY</div><div class="orbit o2">REPAIR</div><div class="orbit o3">EVIDENCE</div></div></div>
+  <div class="stats"><div class="stat card"><span>Engine</span><strong>v1.4</strong><small>Semantic repair enabled</small></div><div class="stat card"><span>Verification</span><strong>2 viewports</strong><small>Desktop + mobile</small></div><div class="stat card"><span>Safety</span><strong>Conservative</strong><small>No invented semantics</small></div></div>
+  <div class="grid-2"><div class="card"><div class="card-head"><h3>How a scan works</h3><span class="tag">LIVE ENGINE</span></div><ol class="steps"><li><b>01</b><span>Fetch and parse the merchant page</span></li><li><b>02</b><span>Identify accessibility candidates</span></li><li><b>03</b><span>Verify hydrated DOM in Chromium</span></li><li><b>04</b><span>Prioritize fixes and produce evidence</span></li></ol></div><div class="card"><div class="card-head"><h3>Client workflow</h3></div><div class="workflow"><div>SCAN</div><span>→</span><div>VERIFY</div><span>→</span><div>REPAIR</div><span>→</span><div>MONITOR</div></div><p class="muted">The scanner is the entry point. The paid product is the remediation and evidence loop.</p></div></div>
+</section>
+<section id="view-scan" class="view hidden">
+  <div class="section-head"><div><span class="eyebrow">LIVE VERIFICATION</span><h2>Scan a merchant</h2><p>Use a public ecommerce URL. A11yForge fetches it, analyzes the source, then verifies findings in Chromium.</p></div></div>
+  <form id="scan-form" class="scan-form card"><label for="url">Store URL</label><div class="input-row"><input id="url" name="url" placeholder="https://example.com" autocomplete="url" required><button class="button primary" type="submit">Run verified scan</button></div><small>Only scan stores you are authorized to assess.</small></form>
+  <div id="scan-status" class="status hidden"></div>
+  <div id="scan-result" class="hidden"></div>
+</section>
+<section id="view-findings" class="view hidden">
+  <div class="empty card"><span class="eyebrow">WORK QUEUE</span><h2>No scan selected</h2><p>Run a scan and your verified findings will appear here with severity, evidence and remediation status.</p><a class="button primary" href="#scan">Start scan</a></div>
+</section>
+<section id="view-evidence" class="view hidden">
+  <div class="empty card"><span class="eyebrow">EVIDENCE</span><h2>Evidence ledger</h2><p>Each verified finding retains its URL, viewport, browser status and scan timestamp. This is the audit trail clients actually care about.</p></div>
+</section>
+</main></div>
+<script src="/app.js"></script>
+</body></html>
