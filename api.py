@@ -14,6 +14,7 @@ from fetch import Fetcher, is_public_url
 from scan import analyze
 from client_package import build_client_package
 from repair import repair_html
+from persistence import save_scan, configured, init_schema
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -28,6 +29,11 @@ if FastAPI:
         "A11YFORGE_CORS",
         "http://localhost:3000,http://127.0.0.1:3000"
     ).split(",") if x.strip()]
+    if configured():
+        try:
+            init_schema()
+        except Exception:
+            pass
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed,
@@ -162,6 +168,9 @@ if FastAPI:
 
             repair_result = repair_html(src, result["findings"])
             package = build_client_package(result, repair_result)
+            scan_id = datetime.now(timezone.utc).strftime(" + String.raw`"%Y%m%d-%H%M%S-"` + ") + uuid4().hex[:8]
+            persistence_status = "PERSISTED" if save_scan(scan_id, result) else "STATELESS"
+            result["persistence_status"] = persistence_status
 
             return {
                 "scan_id": datetime.now(timezone.utc).strftime(
