@@ -1,0 +1,28 @@
+name: A11yForge 100 Customer Simulation
+
+on:
+  push:
+    paths:
+      - "simulation/**"
+      - "scan.py"
+      - "repair.py"
+      - "advanced_rules.py"
+      - "dom.py"
+      - "names.py"
+      - "rendered_playwright.py"
+
+jobs:
+  adversarial-simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements-api.txt -r requirements-rendered.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: python simulation/test_100_customers.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a11yforge-100-customer-results
+          path: simulation/results.json
