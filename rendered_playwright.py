@@ -103,7 +103,7 @@ OBSERVE_JS = r'''
   const globalHints=["acsbapp","accessiBe","UserWay","userway","AudioEye","EqualWeb","equalweb","LevelAccess","AccessiWay"].filter(k=>k in window);
   return {
     candidates:candidates.map(c=>({signature:c.signature,occurrence:Number(c.occurrence||0),count:counts[c.signature]||0,found:(counts[c.signature]||0)>Number(c.occurrence||0)})),
-    dynamic_findings,script_urls,iframe_urls,marker_hints:markerHints.slice(0,200),
+    dynamic_findings,script_urls:scriptUrls,iframe_urls:iframeUrls,marker_hints:markerHints.slice(0,200),
     global_hints:globalHints,
     element_count:deep.length,title:document.title,final_url:location.href,ready_state:document.readyState,scroll_height:document.documentElement?.scrollHeight||0
   };
