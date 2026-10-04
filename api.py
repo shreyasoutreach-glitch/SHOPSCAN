@@ -25,7 +25,7 @@ except ImportError:
     FastAPI = None
 
 if FastAPI:
-    app = FastAPI(title="A11yForge API", version="1.4.0")
+    app = FastAPI(title="A11yForge API", version="1.5.0")
     allowed = [x.strip().rstrip("/") for x in os.getenv(
         "A11YFORGE_CORS",
         "http://localhost:3000,http://127.0.0.1:3000"
@@ -82,7 +82,7 @@ if FastAPI:
 
     @app.get("/health")
     def health():
-        return {"ok": True, "product": "A11yForge", "version": "1.4.0"}
+        return {"ok": True, "product": "A11yForge", "version": "1.5.0"}
 
     @app.post("/api/scan")
     def scan(req: ScanRequest, request: Request):
