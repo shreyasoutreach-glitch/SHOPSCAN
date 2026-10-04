@@ -65,6 +65,26 @@ OBSERVE_JS = r'''
     const title=[...deep].find(e=>e.tagName.toLowerCase()==='title'&&e.parentElement&&(e.parentElement.tagName.toLowerCase()==='head'||e.parentElement.tagName.toLowerCase()==='html'));
     if(!title||!text(title))add('document-title',html);
   }
+  const focusable=e=>{
+    if(e.disabled||e.getAttribute("aria-disabled")==="true")return false;
+    const ti=e.getAttribute("tabindex");
+    if(ti!==null){const n=Number(ti);return Number.isFinite(n)&&n>=0}
+    const t=e.tagName.toLowerCase();
+    return ["button","input","select","textarea","summary","iframe"].includes(t)||(t==="a"&&e.hasAttribute("href"));
+  };
+  const ids={};
+  for(const e of deep){const id=e.getAttribute("id");if(id) (ids[id]??=[]).push(e);}
+  for(const e of deep){
+    if(e.hasAttribute("id")&&ids[e.getAttribute("id")]?.length>1)add("duplicate-id",e);
+    for(const attr of ["aria-labelledby","aria-describedby","aria-controls","aria-owns","aria-activedescendant"]){
+      const raw=(e.getAttribute(attr)||"").trim(); if(!raw)continue;
+      const missing=raw.split(/\s+/).some(id=>!document.getElementById(id));
+      if(missing)add("aria-reference",e);
+    }
+    if(e.getAttribute("aria-label")!==null&&!e.getAttribute("aria-label").trim()&&
+       (focusable(e)||["button","link","checkbox","combobox","listbox","menuitem","radio","searchbox","slider","spinbutton","switch","tab","textbox"].includes((e.getAttribute("role")||"").toLowerCase()))) add("empty-aria-label",e);
+    if(e.getAttribute("aria-hidden")==="true"&&[...e.querySelectorAll("a[href],button,input,select,textarea,summary,iframe,[tabindex]")].some(focusable)) add("aria-hidden-focusable",e);
+  }
   const counts={}; for(const [s,els] of Object.entries(byRule))counts[s]=els.length;
   return {
     candidates:candidates.map(c=>({signature:c.signature,occurrence:Number(c.occurrence||0),count:counts[c.signature]||0,found:(counts[c.signature]||0)>Number(c.occurrence||0)})),
