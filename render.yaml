@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: a11yforge-api
+    runtime: python
+    region: singapore
+    plan: starter
+    buildCommand: pip install -r requirements-api.txt && pip install -r requirements-rendered.txt && python -m playwright install --with-deps chromium
+    startCommand: uvicorn api:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: A11YFORGE_CORS
+        sync: false
