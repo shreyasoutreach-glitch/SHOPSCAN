@@ -5,6 +5,7 @@ against the hydrated browser DOM at multiple responsive viewports, records evide
 fails conservatively when the browser cannot produce a trustworthy observation.
 """
 from rendered import RenderedVerifier, CONFIRMED, NOT_REPRODUCED, ERROR
+from fetch import is_public_url
 
 OBSERVE_JS = r'''
 (candidates) => {
@@ -100,6 +101,13 @@ class PlaywrightVerifier(RenderedVerifier):
                     page.on("console",lambda msg: console_errors.append(msg.type) if msg.type=="error" else None)
                     page.on("pageerror",lambda exc: page_errors.append(str(exc)[:300]))
                     page.on("requestfailed",lambda req: request_failures.append(req.url[:300]))
+                    def guard(route):
+                        target=route.request.url
+                        if target.startswith(("data:","blob:","about:")) or is_public_url(target):
+                            route.continue_()
+                        else:
+                            route.abort()
+                    page.route("**/*",guard)
                     try:
                         response=page.goto(url,wait_until="domcontentloaded",timeout=self.timeout_ms)
                         page.wait_for_timeout(self.settle_ms)
