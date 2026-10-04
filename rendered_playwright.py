@@ -42,7 +42,7 @@ OBSERVE_JS = r'''
   const add=(rule,e)=>{const s=rule+'|'+e.tagName.toLowerCase()+'|'+shape(e);(byRule[s]??=[]).push(e)};
   for(const e of deep){
     if(!visible(e))continue; const t=e.tagName.toLowerCase();
-    if(t==='img'&&!e.hasAttribute('alt')&&e.getAttribute('role')!=='presentation'&&e.getAttribute('role')!=='none'&&(!e.getAttribute('aria-label')||!e.getAttribute('aria-label').trim())&&(!e.getAttribute('aria-labelledby')||!e.getAttribute('aria-labelledby').trim()))add('image-alt',e);
+    if(t==='img'&&!e.hasAttribute('alt')&&e.getAttribute('role')!=='presentation'&&e.getAttribute('role')!=='none'&&!named(e).ok)add('image-alt',e);
     if(['input','textarea','select'].includes(t)){
       const typ=(e.getAttribute('type')||'text').toLowerCase();
       if(!(t==='input'&&['hidden','submit','reset','button','image'].includes(typ))&&!named(e).ok)add('label',e);
