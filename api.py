@@ -16,6 +16,8 @@ from client_package import build_client_package
 from repair import repair_html
 from persistence import save_scan, configured, init_schema
 from crawl import discover
+from overlay_signatures import detect_source_overlays
+from evidence_ledger import assessment_ledger
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -25,7 +27,7 @@ except ImportError:
     FastAPI = None
 
 if FastAPI:
-    app = FastAPI(title="A11yForge API", version="1.5.0")
+    app = FastAPI(title="A11yForge API", version="1.6.0")
     allowed = [x.strip().rstrip("/") for x in os.getenv(
         "A11YFORGE_CORS",
         "http://localhost:3000,http://127.0.0.1:3000"
@@ -82,7 +84,7 @@ if FastAPI:
 
     @app.get("/health")
     def health():
-        return {"ok": True, "product": "A11yForge", "version": "1.5.0"}
+        return {"ok": True, "product": "A11yForge", "version": "1.6.0"}
 
     @app.post("/api/scan")
     def scan(req: ScanRequest, request: Request):
@@ -103,6 +105,11 @@ if FastAPI:
 
             src = first["body"].decode(first.get("charset") or "utf-8", "replace")
             result = analyze(src, first["final"], first["headers"])
+            result["scanner_version"] = "1.6.0"
+            result["overlay_evidence"] = {"source": detect_source_overlays(
+                script_urls=result.get("context",{}).get("links",[]),
+                markers=result.get("context",{}).get("overlays",[])
+            )}
             result.update({
                 "url": first["final"],
                 "domain": urlsplit(first["final"]).hostname,
@@ -159,10 +166,23 @@ if FastAPI:
                     "status", "UNKNOWN"
                 )
                 result["rendered_evidence"] = verifier.last_evidence
+                runtime_overlays=[]
+                for vp in verifier.last_evidence.get("viewports",[]):
+                    runtime_overlays.extend(detect_source_overlays(
+                        script_urls=vp.get("script_urls",[]),
+                        iframe_urls=vp.get("iframe_urls",[]),
+                        markers=vp.get("marker_hints",[]),
+                        globals=vp.get("global_hints",[])
+                    ))
+                by_vendor={}
+                for item in runtime_overlays:
+                    by_vendor.setdefault(item["vendor"],[]).extend(item.get("signals",[]))
+                result["overlay_evidence"]["runtime"]=[{"vendor":v,"confidence":"HIGH" if len(set(s))>=2 else "MEDIUM","signals":sorted(set(s))[:12],"source_observed":bool(result["overlay_evidence"].get("source")),"runtime_observed":True} for v,s in by_vendor.items()]
             except Exception as exc:
                 result["candidate_findings"] = [{**f, "rendered_verification": ERROR} for f in result.get("findings", [])]
                 result["findings"] = []
                 result["rendered_status"] = "ERROR"
+                result["overlay_evidence"] = result.get("overlay_evidence",{"source":[],"runtime":[]})
                 result["rendered_evidence"] = {
                     "status": "ERROR",
                     "error": type(exc).__name__ + ": " + str(exc)[:300],
@@ -179,6 +199,7 @@ if FastAPI:
                     item["url"] = first["final"]
                     item["source_repairable"] = False
                 result["interaction_findings"] = interaction_findings
+                result["interaction_evidence"]["accessibility_tree"] = interaction_evidence.get("accessibility_tree",{})
                 result["interaction_evidence"] = interaction_evidence
                 result["interaction_status"] = interaction_evidence.get("status", "UNKNOWN")
                 result["findings"].extend(interaction_findings)
@@ -221,6 +242,20 @@ if FastAPI:
                 result["multipage_status"] = "ERROR"
                 result["multipage_error"] = type(exc).__name__ + ": " + str(exc)[:300]
 
+            # Browser-discovered findings are independent of static candidates.
+            # Add only genuinely new hydrated-DOM defects to the verified queue.
+            try:
+                dynamic = getattr(verifier, "last_dynamic_findings", [])
+            except Exception:
+                dynamic = []
+            existing={(f.get("base_rule") or f.get("rule"), f.get("signature"), f.get("occurrence")) for f in result.get("findings",[])}
+            for f in dynamic:
+                key=(f.get("base_rule") or f.get("rule"),f.get("signature"),f.get("occurrence"))
+                if key in existing: continue
+                f["source_repairable"]=False
+                f["rendered_verification"]="CONFIRMED"
+                result["findings"].append(f)
+                existing.add(key)
             result["finding_count"] = len(result["findings"])
             result["candidate_count"] = len(result.get("candidate_findings", []))
             result["assessment_status"] = "VERIFIED" if result.get("rendered_status") == "OK" else "VERIFICATION_LIMIT"
@@ -258,6 +293,8 @@ if FastAPI:
             scan_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
             persistence_status = "PERSISTED" if save_scan(scan_id, result) else "STATELESS"
             result["persistence_status"] = persistence_status
+            result["evidence_ledger"] = assessment_ledger(result)
+            result["evidence_head_hash"] = result["evidence_ledger"].get("head_hash")
 
             return {
                 "scan_id": scan_id,
