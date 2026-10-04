@@ -15,6 +15,7 @@
     <a href="#scan" data-route="scan">New scan</a>
     <a href="#findings" data-route="findings">Findings <span id="finding-count" class="nav-count">0</span></a>
     <a href="#evidence" data-route="evidence">Evidence</a>
+    <a href="#repairs" data-route="repairs">Repairs</a>
   </nav>
   <div class="side-note"><span class="pulse"></span> Verification engine online</div>
 </aside>
@@ -41,6 +42,11 @@
 <section id="view-findings" class="view hidden">
   <div class="section-head"><span class="eyebrow">VERIFIED WORK QUEUE</span><h2>Findings</h2><p>Every item below survived the browser verification gate.</p></div>
   <div id="findings-list"></div>
+</section>
+
+<section id="view-repairs" class="view hidden">
+  <div class="section-head"><span class="eyebrow">SAFE REMEDIATION</span><h2>Repairs</h2><p>Deterministic fixes generated from verified findings. Ambiguous semantics stay in review.</p></div>
+  <div id="repairs-list"></div>
 </section>
 
 <section id="view-evidence" class="view hidden">
