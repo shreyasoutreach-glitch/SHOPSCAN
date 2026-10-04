@@ -122,6 +122,7 @@ def _finding(rule, impact, observation, evidence, viewport):
         "context": "",
         "name_evidence": evidence,
         "interaction_evidence": evidence,
+        "evidence": evidence,
         "viewport": viewport,
         "scanner_version": INTERACTION_VERSION,
         "reproducible_with_axe": False,
