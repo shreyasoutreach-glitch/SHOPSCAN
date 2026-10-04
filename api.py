@@ -135,11 +135,12 @@ if FastAPI:
                 from rendered_playwright import PlaywrightVerifier, CONFIRMED, ERROR
 
                 verifier = PlaywrightVerifier(timeout_ms=20000, settle_ms=900)
-                statuses = verifier.verify(first["final"], result["findings"])
+                static_candidates = list(result["findings"])
+                statuses = verifier.verify(first["final"], static_candidates)
                 kept = []
-                browser_errors = []
+                candidate_findings = []
 
-                for finding in result["findings"]:
+                for finding in static_candidates:
                     status = statuses.get(
                         (finding["signature"], finding["occurrence"]),
                         ERROR,
@@ -147,11 +148,13 @@ if FastAPI:
                     item = {**finding, "rendered_verification": status}
                     if status == CONFIRMED:
                         kept.append(item)
-                    elif status == ERROR:
-                        browser_errors.append(item)
+                    else:
+                        candidate_findings.append(item)
 
-                result["candidate_findings"] = browser_errors
+                result["candidate_findings"] = candidate_findings
                 result["findings"] = kept
+                result["verified_finding_count"] = len(kept)
+                result["candidate_finding_count"] = len(candidate_findings)
                 result["rendered_status"] = verifier.last_evidence.get(
                     "status", "UNKNOWN"
                 )
