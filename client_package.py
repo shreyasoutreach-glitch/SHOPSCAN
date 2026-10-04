@@ -22,6 +22,8 @@ def prioritize(findings):
 def build_client_package(scan_result, repair_result=None):
     findings=prioritize(scan_result.get("findings",[]))
     proposals=(repair_result or {}).get("proposals",[])
+    overlay=scan_result.get("overlay_evidence",{})
+    interaction=scan_result.get("interaction_evidence",{})
     repairs=(repair_result or {}).get("repairs",[])
     return {
         "product":"A11yForge",
@@ -35,14 +37,27 @@ def build_client_package(scan_result, repair_result=None):
             "candidate_count":len(scan_result.get("candidate_findings",[])),
             "rendered_evidence":scan_result.get("rendered_evidence",{}),
             "limitations":scan_result.get("limitations",[]),
+            "overlay_truth_test": overlay,
+            "evidence_head_hash": scan_result.get("evidence_head_hash"),
         },
         "executive_summary":{
             "verified_findings":len(findings),
             "safe_repairs_available":len(repairs),
             "human_review_items":len(proposals),
+            "verified_interaction_findings":len(scan_result.get("interaction_findings",[])),
+            "overlay_vendors": [x.get("vendor") for x in overlay.get("runtime",[]) if x.get("vendor")],
             "confidence_boundary":"Verified findings are browser-confirmed observations. Static candidates retained under a verification limit are explicitly unverified and require confirmation before being treated as proven defects. This is not a WCAG certification or legal opinion."
         },
         "work_queue":findings,
+        "candidate_work_queue":prioritize(scan_result.get("candidate_findings",[])),
+        "overlay_truth_test": {
+            "vendors": overlay.get("runtime",[]),
+            "source_signals": overlay.get("source",[]),
+            "remaining_verified_findings": len(findings),
+            "interaction_findings": len(scan_result.get("interaction_findings",[])),
+            "accessibility_tree": interaction.get("accessibility_tree",{})
+        },
+        "evidence_ledger": scan_result.get("evidence_ledger",{}),
         "repairs":repairs,
         "repair_regression":(repair_result or {}).get("regression", {"status":"NOT_RUN"}),
         "review_queue":proposals,
