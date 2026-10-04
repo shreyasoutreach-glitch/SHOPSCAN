@@ -8,7 +8,14 @@ const submit=document.getElementById("scan-submit");
 let lastScan=loadScan();
 
 function loadScan(){try{return JSON.parse(localStorage.getItem("a11yforge:lastScan")||"null")}catch{return null}}
-function saveScan(data){lastScan=data;try{localStorage.setItem("a11yforge:lastScan",JSON.stringify(data))}catch{}}
+function saveScan(data){
+  lastScan=data;
+  try{
+    const persisted=JSON.parse(JSON.stringify(data));
+    if(persisted.repair) delete persisted.repair.html;
+    localStorage.setItem("a11yforge:lastScan",JSON.stringify(persisted));
+  }catch{}
+}
 function currentRoute(){const r=location.hash.replace("#","");return routes[r]?r:"dashboard"}
 function renderRoute(){
   const r=currentRoute();
@@ -38,7 +45,7 @@ form?.addEventListener("submit",async e=>{
     if(!res.ok)throw new Error(data.detail||"Scan failed");
     saveScan(data);
     status.className="status";
-    status.textContent="Verified scan complete.";
+    status.textContent=data.result?.rendered_status==="OK"?"Verified scan complete.":"Scan complete with browser verification status: "+(data.result?.rendered_status||"unknown");
     renderResult(data);
     renderRoute();
   }catch(err){
@@ -66,7 +73,7 @@ function getFindings(){return lastScan?.package?.work_queue||[]}
 function renderResult(data){
   const r=data.result||{}, findings=getFindings(), score=findings.reduce((n,f)=>n+(f.impact==="critical"?14:f.impact==="serious"?9:f.impact==="moderate"?5:1),0), repairs=data.repair?.repairs||data.package?.repairs||[];
   result.className="result-card card";
-  result.innerHTML='<div class="result-top"><div><span class="eyebrow">VERIFIED ASSESSMENT</span><h3>'+escapeHtml(r.domain||r.url||"Merchant")+'</h3><p class="muted">'+(r.rendered_status==="OK"?"Chromium verification passed":"Browser verification: "+escapeHtml(r.rendered_status||"unknown"))+" · "+findings.length+' verified findings</p></div><div><span class="eyebrow">RISK SIGNAL</span><div class="score">'+score+'</div></div></div>'+
+  result.innerHTML='<div class="result-top"><div><span class="eyebrow">ASSESSMENT WITH VERIFICATION LIMIT</span><h3>'+escapeHtml(r.domain||r.url||"Merchant")+'</h3><p class="muted">'+(r.rendered_status==="OK"?"Chromium verification passed":"Browser verification: "+escapeHtml(r.rendered_status||"unknown"))+" · "+findings.length+' verified findings</p></div><div><span class="eyebrow">RISK POINTS</span><div class="score">'+score+'</div></div></div>'+
     '<div class="result-actions"><a class="button primary" href="#findings">View '+findings.length+' findings</a><a class="button" href="#evidence">Open evidence</a><a class="button" href="#repairs">Open repairs</a><button class="button" id="rescan-button" type="button">Scan another store</button></div>'+
     '<div style="margin-top:20px">'+(findings.length?findings.map(f=>findingMarkup(f)).join(""):'<div class="empty"><h2>No verified findings</h2><p>The engine did not retain a finding after browser verification.</p></div>')+'</div>';
   document.getElementById("rescan-button")?.addEventListener("click",()=>{location.hash="scan";document.getElementById("url")?.focus()});
@@ -98,7 +105,7 @@ function renderRepairs(){
   html+='<p class="muted">'+(repairs.length?'The engine generated deterministic changes from verified findings. This is a patch artifact, not a live Shopify deployment.':'No verified finding in this scan had a safe deterministic source transform.')+'</p>';
   if(repairs.length) html+='<div class="repair-list">'+repairs.map(x=>'<div class="repair-row"><strong>'+escapeHtml(x.rule||"repair")+'</strong><span>'+escapeHtml(x.action||"safe repair")+'</span><code>'+escapeHtml(x.signature||"")+'</code></div>').join("")+'</div>';
   if(proposals.length) html+='<details class="review-box"><summary>'+proposals.length+' review items</summary><pre>'+escapeHtml(JSON.stringify(proposals,null,2))+'</pre></details>';
-  html+='<div class="result-actions">'+(repairs.length?'<button class="button primary" id="download-repair" type="button">Download patched HTML</button>':'')+'<a class="button" href="#findings">Open findings</a></div></div>';
+  html+='<div class="result-actions">'+(repairs.length&&typeof lastScan.repair?.html==="string"?'<button class="button primary" id="download-repair" type="button">Download patched HTML</button>':'')+'<a class="button" href="#findings">Open findings</a></div></div>';
   el.innerHTML=html;
   document.getElementById("download-repair")?.addEventListener("click",()=>{
     const source=lastScan.repair?.html;
