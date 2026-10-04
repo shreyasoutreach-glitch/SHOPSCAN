@@ -165,6 +165,11 @@ def infer(source, finding):
         return {"confidence": REVIEW, "reason": "source node could not be resolved", "evidence": []}
 
     if rule == "image-alt":
+        role = node.attrs.get("role", "").strip().lower()
+        if node.attrs.get("aria-hidden", "").strip().lower() == "true" or role in ("presentation", "none"):
+            return {"confidence": SAFE_AUTO_REPAIR, "value": "", "attribute": "alt",
+                    "reason": "markup explicitly declares the image decorative",
+                    "evidence": ["aria-hidden=true" if node.attrs.get("aria-hidden", "").strip().lower() == "true" else f"role={role}"]}
         explicit = _figure_caption(node)
         if explicit:
             return {"confidence": SAFE_AUTO_REPAIR, "value": explicit,
