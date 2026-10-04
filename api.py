@@ -160,7 +160,7 @@ if FastAPI:
                 )
                 result["rendered_evidence"] = verifier.last_evidence
             except Exception as exc:
-                result["candidate_findings"] = result["findings"]
+                result["candidate_findings"] = [{**f, "rendered_verification": ERROR} for f in result["findings"]]
                 result["findings"] = []
                 result["rendered_status"] = "ERROR"
                 result["rendered_evidence"] = {
