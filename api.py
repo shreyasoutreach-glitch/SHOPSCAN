@@ -159,6 +159,14 @@ if FastAPI:
                     "status", "UNKNOWN"
                 )
                 result["rendered_evidence"] = verifier.last_evidence
+            except Exception as exc:
+                result["candidate_findings"] = [{**f, "rendered_verification": ERROR} for f in result.get("findings", [])]
+                result["findings"] = []
+                result["rendered_status"] = "ERROR"
+                result["rendered_evidence"] = {
+                    "status": "ERROR",
+                    "error": type(exc).__name__ + ": " + str(exc)[:300],
+                }
 
             # Interaction audit is independent of static candidates. A page can have
             # serious keyboard/focus defects even when source-level rules find nothing.
