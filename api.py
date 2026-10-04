@@ -159,6 +159,26 @@ if FastAPI:
                     "status", "UNKNOWN"
                 )
                 result["rendered_evidence"] = verifier.last_evidence
+
+            # Interaction audit is independent of static candidates. A page can have
+            # serious keyboard/focus defects even when source-level rules find nothing.
+            try:
+                from interaction import audit as interaction_audit
+                interaction_findings, interaction_evidence = interaction_audit(first["final"], timeout_ms=15000, settle_ms=700)
+                for item in interaction_findings:
+                    item["url"] = first["final"]
+                    item["source_repairable"] = False
+                result["interaction_findings"] = interaction_findings
+                result["interaction_evidence"] = interaction_evidence
+                result["interaction_status"] = interaction_evidence.get("status", "UNKNOWN")
+                result["findings"].extend(interaction_findings)
+            except Exception as exc:
+                result["interaction_findings"] = []
+                result["interaction_status"] = "ERROR"
+                result["interaction_evidence"] = {
+                    "status": "ERROR",
+                    "error": type(exc).__name__ + ": " + str(exc)[:300],
+                }
             except Exception as exc:
                 result["candidate_findings"] = [{**f, "rendered_verification": ERROR} for f in result["findings"]]
                 result["findings"] = []
@@ -172,9 +192,14 @@ if FastAPI:
             result["candidate_count"] = len(result.get("candidate_findings", []))
             result["assessment_status"] = "VERIFIED" if result.get("rendered_status") == "OK" else "VERIFICATION_LIMIT"
 
-            repair_input = result["findings"]
+            # Only source-backed findings can produce source patches. Interaction
+            # findings remain evidence/review items and never get fake source offsets.
+            repair_input = [f for f in result["findings"] if f.get("source_repairable", True)]
             if not repair_input and result.get("rendered_status") in {"ERROR", "PARTIAL"}:
-                repair_input = [f for f in result.get("candidate_findings", []) if f.get("rendered_verification") == ERROR]
+                repair_input = [
+                    f for f in result.get("candidate_findings", [])
+                    if f.get("rendered_verification") == ERROR and f.get("source_repairable", True)
+                ]
             repair_result = repair_html(src, repair_input)
             if repair_input is not result["findings"]:
                 for item in repair_result.get("repairs", []):
