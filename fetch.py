@@ -1,9 +1,34 @@
 """shopscan.fetch -- polite, bounded HTTP."""
-import os, re, threading, time, urllib.error, urllib.request, urllib.robotparser, zlib
+import ipaddress, os, re, socket, threading, time, urllib.error, urllib.request, urllib.robotparser, zlib
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 ROBOT_TOKEN="a11yforge"; CONTACT=os.getenv("SHOPSCAN_CONTACT","").strip(); UA="a11yforge/1.4 (+accessibility triage)" + (f" contact: {CONTACT}" if CONTACT else "")
 RETRIES=2; MAX_REDIRECTS=5; RETRY_AFTER_CAP=10.0; CRAWL_DELAY_CAP=30.0
 TRANSIENT={429,500,502,503,504}
+
+def _public_ip(value):
+    try:
+        ip=ipaddress.ip_address(value)
+    except ValueError:
+        return False
+    return ip.is_global and not ip.is_multicast and not ip.is_unspecified
+
+def is_public_url(url):
+    try:
+        p=urlsplit(url.strip())
+        if p.scheme.lower() not in ("http","https") or not p.hostname or p.username or p.password:
+            return False
+        host=p.hostname.rstrip(".").lower()
+        if host in {"localhost","metadata.google.internal","metadata.amazonaws.com"} or host.endswith(".localhost"):
+            return False
+        try:
+            return _public_ip(ipaddress.ip_address(host))
+        except ValueError:
+            pass
+        infos=socket.getaddrinfo(host,p.port or (443 if p.scheme.lower()=="https" else 80),type=socket.SOCK_STREAM)
+        ips={item[4][0] for item in infos}
+        return bool(ips) and all(_public_ip(ip) for ip in ips)
+    except (ValueError,socket.gaierror,OSError):
+        return False
 TRACKING=re.compile(r"^(utm_.*|fbclid|gclid|msclkid|mc_cid|mc_eid|ref|_pos|_sid|_ss|_psq|_fid|_v|srsltid|igshid)$",re.I)
 def canonical_url(url):
     p=urlsplit(url.strip()); host=(p.hostname or "").lower()
@@ -16,7 +41,7 @@ class _Redirects(urllib.request.HTTPRedirectHandler):
     def __init__(self,chain):self.chain=chain
     def redirect_request(self,req,fp,code,msg,headers,newurl):
         if len(self.chain)>=MAX_REDIRECTS:raise urllib.error.HTTPError(req.full_url,code,"too many redirects",headers,fp)
-        if not newurl.lower().startswith(("http://","https://")):raise urllib.error.HTTPError(req.full_url,code,"non-http redirect",headers,fp)
+        if not newurl.lower().startswith(("http://","https://")) or not is_public_url(newurl):raise urllib.error.HTTPError(req.full_url,code,"unsafe redirect",headers,fp)
         self.chain.append((code,newurl));return super().redirect_request(req,fp,code,msg,headers,newurl)
 def decode_body(body,header_charset=None):
     if body.startswith(b"\xef\xbb\xbf"):return body[3:].decode("utf-8","replace"),"utf-8","bom",0
@@ -92,5 +117,7 @@ class Fetcher:
     def allowed(self,url):
         p=urlsplit(url);return self._robots_for(f"{p.scheme}://{p.netloc}").can_fetch(ROBOT_TOKEN,url)
     def page(self,url):
+        if not is_public_url(url):
+            return {"state":"UNSAFE_URL","status":0,"final":url,"body":b"","headers":{},"redirects":[],"bytes_received":0,"max_bytes":self.max_bytes,"truncated":False,"charset":None,"error":"destination is not globally routable","attempts":0,"elapsed":0}
         if not self.allowed(url):return {"state":"ROBOTS","status":-1,"final":url,"body":b"","headers":{},"redirects":[],"bytes_received":0,"max_bytes":self.max_bytes,"truncated":False,"charset":None,"error":"robots.txt disallows","attempts":0,"elapsed":0}
         return self.raw(url)
