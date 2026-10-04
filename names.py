@@ -70,11 +70,8 @@ def name_evidence(node, index, labels, kind):
         else: invalid.append("aria-labelledby:" + ("missing" if r["missing"] and not r["empty"] else "empty-or-missing"))
     if "aria-label" in at:
         (strong if at["aria-label"].strip() else invalid).append("aria-label" if at["aria-label"].strip() else "aria-label:empty")
-    if kind == "image":
-        if at.get("alt") is not None:
-            return {"strength": "strong" if at.get("alt", "").strip() else "strong",
-                    "strong": ["alt"] if at.get("alt", "").strip() else ["empty-alt"],
-                    "weak": [], "invalid": []}
+    if kind == "image" and ("aria-label" in strong or "aria-labelledby" in strong):
+        return {"strength": "strong", "strong": strong, "weak": weak, "invalid": invalid}
     if kind == "control":
         exhausted = False
         cand = list(labels.get(at.get("id", ""), [])) if at.get("id") else []
