@@ -170,8 +170,15 @@ if FastAPI:
 
             result["finding_count"] = len(result["findings"])
             result["candidate_count"] = len(result.get("candidate_findings", []))
+            result["assessment_status"] = "VERIFIED" if result.get("rendered_status") == "OK" else "VERIFICATION_LIMIT"
 
-            repair_result = repair_html(src, result["findings"])
+            repair_input = result["findings"]
+            if not repair_input and result.get("rendered_status") in {"ERROR", "PARTIAL"}:
+                repair_input = [f for f in result.get("candidate_findings", []) if f.get("rendered_verification") == ERROR]
+            repair_result = repair_html(src, repair_input)
+            if repair_input is not result["findings"]:
+                for item in repair_result.get("repairs", []):
+                    item["verification_scope"] = "static_candidate_unverified"
             package = build_client_package(result, repair_result)
             scan_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
             persistence_status = "PERSISTED" if save_scan(scan_id, result) else "STATELESS"
