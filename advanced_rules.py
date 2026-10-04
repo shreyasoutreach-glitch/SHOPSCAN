@@ -65,7 +65,7 @@ def analyze_advanced(src, nodes):
                 if r: findings.append(r)
 
     valid_ids=set(ids)
-    ref_attrs=("aria-labelledby","aria-describedby","aria-controls","aria-owns","aria-activedescendant")
+    ref_attrs=("aria-labelledby","aria-describedby","aria-owns","aria-activedescendant")
     for n in nodes:
         for attr in ref_attrs:
             raw=n.attrs.get(attr,"").strip()
