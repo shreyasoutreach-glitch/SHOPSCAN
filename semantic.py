@@ -259,7 +259,7 @@ def infer(source, finding):
 
 def apply_semantic(source, finding, proposal):
     """Apply one already-approved semantic proposal at the finding offset."""
-    if proposal.get("confidence") != SAFE_AUTO_REPAIR or not proposal.get("value"):
+    if proposal.get("confidence") != SAFE_AUTO_REPAIR or proposal.get("value") is None:
         return source, False
     off = int(finding.get("off", -1))
     raw = finding.get("snippet", "")
