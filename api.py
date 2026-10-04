@@ -168,14 +168,12 @@ if FastAPI:
 
             repair_result = repair_html(src, result["findings"])
             package = build_client_package(result, repair_result)
-            scan_id = datetime.now(timezone.utc).strftime(" + String.raw`"%Y%m%d-%H%M%S-"` + ") + uuid4().hex[:8]
+            scan_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
             persistence_status = "PERSISTED" if save_scan(scan_id, result) else "STATELESS"
             result["persistence_status"] = persistence_status
 
             return {
-                "scan_id": datetime.now(timezone.utc).strftime(
-                    "%Y%m%d-%H%M%S-"
-                ) + uuid4().hex[:8],
+                "scan_id": scan_id,
                 "product": "A11yForge",
                 "result": result,
                 "repair": repair_result,
