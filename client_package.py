@@ -31,6 +31,8 @@ def build_client_package(scan_result, repair_result=None):
             "url":scan_result.get("url"),
             "verified_loads":scan_result.get("verified_loads",0),
             "rendered_status":scan_result.get("rendered_status"),
+            "assessment_status":scan_result.get("assessment_status"),
+            "candidate_count":len(scan_result.get("candidate_findings",[])),
             "rendered_evidence":scan_result.get("rendered_evidence",{}),
             "limitations":scan_result.get("limitations",[]),
         },
@@ -38,7 +40,7 @@ def build_client_package(scan_result, repair_result=None):
             "verified_findings":len(findings),
             "safe_repairs_available":len(repairs),
             "human_review_items":len(proposals),
-            "confidence_boundary":"Findings are verified observations within the stated scan scope, not a WCAG certification or legal opinion."
+            "confidence_boundary":"Verified findings are browser-confirmed observations. Static candidates retained under a verification limit are explicitly unverified and require confirmation before being treated as proven defects. This is not a WCAG certification or legal opinion."
         },
         "work_queue":findings,
         "repairs":repairs,
