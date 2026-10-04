@@ -160,6 +160,17 @@ def audit(url, timeout_ms=15000, settle_ms=800):
                 page.wait_for_timeout(500)
                 page.evaluate("window.scrollTo(0,0)")
                 data=page.evaluate(OBSERVE_JS)
+                accessibility_tree={}
+                try:
+                    cdp=context.new_cdp_session(page)
+                    ax=cdp.send("Accessibility.getFullAXTree")
+                    nodes=ax.get("nodes",[])
+                    interactive_ax=[n for n in nodes if n.get("role",{}).get("value") in {"button","link","textbox","combobox","checkbox","radio","switch","slider","tab","menuitem"}]
+                    unnamed=[n for n in interactive_ax if not str(n.get("name",{}).get("value","")).strip() and not n.get("ignored")]
+                    accessibility_tree={"status":"OK","node_count":len(nodes),"interactive_count":len(interactive_ax),"unnamed_interactive_count":len(unnamed),"unnamed_examples":[{"role":n.get("role",{}).get("value"),"backendDOMNodeId":n.get("backendDOMNodeId")} for n in unnamed[:10]]}
+                except Exception as ax_exc:
+                    accessibility_tree={"status":"ERROR","error":type(ax_exc).__name__+": "+str(ax_exc)[:300]}
+                data["accessibility_tree"]=accessibility_tree
                 controls=data.get("controls",[])
                 for control in controls:
                     label=control.get("name","")
@@ -206,7 +217,7 @@ def audit(url, timeout_ms=15000, settle_ms=800):
                         safe_probe_count+=1
                     except Exception:
                         continue
-                evidence["viewports"].append({"viewport":vp,"http_status":response.status if response else None,"url":page.url,"title":data.get("title",""),"interactive_count":len(controls),"focusable_count":data.get("focusableCount",0),"keyboard_samples":len(sequence),"safe_probes":safe_probe_count})
+                evidence["viewports"].append({"viewport":vp,"http_status":response.status if response else None,"url":page.url,"title":data.get("title",""),"interactive_count":len(controls),"focusable_count":data.get("focusableCount",0),"keyboard_samples":len(sequence),"safe_probes":safe_probe_count,"accessibility_tree":accessibility_tree})
             except Exception as exc:
                 evidence["status"]="PARTIAL" if evidence["viewports"] else "ERROR"
                 evidence.setdefault("errors",[]).append({"viewport":vp,"error":type(exc).__name__+": "+str(exc)[:300]})
@@ -214,5 +225,6 @@ def audit(url, timeout_ms=15000, settle_ms=800):
                 page.close()
         context.close()
         browser.close()
+    evidence["accessibility_tree"]={"viewports":[v.get("accessibility_tree",{}) for v in evidence.get("viewports",[])],"status":"OK" if any(v.get("accessibility_tree",{}).get("status")=="OK" for v in evidence.get("viewports",[])) else "ERROR"}
     evidence["finding_count"]=len(findings)
     return findings,evidence
