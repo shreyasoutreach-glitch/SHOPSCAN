@@ -82,32 +82,45 @@ class PlaywrightVerifier(RenderedVerifier):
         self.timeout_ms=max(1000,int(timeout_ms)); self.settle_ms=max(0,int(settle_ms)); self.headless=headless
         self.viewports=tuple(viewports or DEFAULT_VIEWPORTS); self.last_evidence={}
 
+    def _guard(self, initial_url):
+        initial_host=(urlsplit(initial_url).hostname or "").lower().rstrip(".")
+        cache={}
+        def guard(route):
+            target=route.request.url
+            if target.startswith(("data:","blob:","about:")):
+                route.continue_(); return
+            try:
+                host=(urlsplit(target).hostname or "").lower().rstrip(".")
+                if host and host==initial_host:
+                    route.continue_(); return
+                if host and host not in cache:
+                    cache[host]=is_public_url(target)
+                if cache.get(host,False): route.continue_()
+                else: route.abort()
+            except Exception:
+                route.abort()
+        return guard
+
     def verify(self, url, findings):
-        if not findings:
-            self.last_evidence={"status":"NO_CANDIDATES"}; return {}
+        candidates=[{"signature":f["signature"],"occurrence":f.get("occurrence",0)} for f in findings]
+        evidence={"status":"OK","url":url,"viewports":[],"browser":"chromium","candidate_count":len(candidates)}
+        aggregate={}; successful=0; errors=[]
         try:
             from playwright.sync_api import sync_playwright
         except Exception as exc:
-            self.last_evidence={"status":"ERROR","error":type(exc).__name__+": "+str(exc)}
-            return {(f["signature"],f["occurrence"]):ERROR for f in findings}
-        candidates=[{"signature":f["signature"],"occurrence":f["occurrence"]} for f in findings]
-        evidence={"status":"OK","url":url,"viewports":[],"browser":"chromium"}; aggregate={}
+            self.last_evidence={"status":"ERROR","error":type(exc).__name__+": "+str(exc),"candidate_count":len(candidates)}
+            return {(f["signature"],f.get("occurrence",0)):ERROR for f in findings}
         try:
             with sync_playwright() as p:
-                browser=p.chromium.launch(headless=self.headless)
+                browser=p.chromium.launch(headless=self.headless,args=["--disable-dev-shm-usage"])
                 context=browser.new_context(ignore_https_errors=True,service_workers="block",locale="en-US",timezone_id="America/New_York")
                 for width,height in self.viewports:
-                    page=context.new_page(); page.set_viewport_size({"width":width,"height":height}); console_errors=[]; page_errors=[]; request_failures=[]
+                    page=context.new_page(); page.set_viewport_size({"width":width,"height":height})
+                    console_errors=[]; page_errors=[]; request_failures=[]
                     page.on("console",lambda msg: console_errors.append(msg.type) if msg.type=="error" else None)
                     page.on("pageerror",lambda exc: page_errors.append(str(exc)[:300]))
                     page.on("requestfailed",lambda req: request_failures.append(req.url[:300]))
-                    def guard(route):
-                        target=route.request.url
-                        if target.startswith(("data:","blob:","about:")) or is_public_url(target):
-                            route.continue_()
-                        else:
-                            route.abort()
-                    page.route("**/*",guard)
+                    page.route("**/*",self._guard(url))
                     try:
                         response=page.goto(url,wait_until="domcontentloaded",timeout=self.timeout_ms)
                         page.wait_for_timeout(self.settle_ms)
@@ -115,17 +128,24 @@ class PlaywrightVerifier(RenderedVerifier):
                         page.wait_for_timeout(min(800,self.settle_ms))
                         page.evaluate("window.scrollTo(0, 0)")
                         observed=page.evaluate(OBSERVE_JS,candidates)
-                        for item in observed["candidates"]:
-                            key=(item["signature"],item["occurrence"]); aggregate[key]=aggregate.get(key,False) or bool(item["found"])
-                        evidence["viewports"].append({"width":width,"height":height,"http_status":response.status if response else None,
-                            "final_url":page.url,"title":observed.get("title",""),"ready_state":observed.get("ready_state"),
-                            "element_count":observed.get("element_count",0),"scroll_height":observed.get("scroll_height",0),
-                            "console_error_count":len(console_errors),"page_error_count":len(page_errors),
-                            "request_failure_count":len(request_failures),"page_errors":page_errors[:3]})
-                    finally: page.close()
+                        successful += 1
+                        for item in observed.get("candidates",[]):
+                            key=(item["signature"],item["occurrence"])
+                            aggregate[key]=aggregate.get(key,False) or bool(item["found"])
+                        evidence["viewports"].append({"width":width,"height":height,"http_status":response.status if response else None,"final_url":page.url,"title":observed.get("title",""),"ready_state":observed.get("ready_state"),"element_count":observed.get("element_count",0),"scroll_height":observed.get("scroll_height",0),"console_error_count":len(console_errors),"page_error_count":len(page_errors),"request_failure_count":len(request_failures),"page_errors":page_errors[:3]})
+                    except Exception as exc:
+                        errors.append({"viewport":[width,height],"error":type(exc).__name__+": "+str(exc)[:300]})
+                        evidence["viewports"].append({"width":width,"height":height,"error":errors[-1]["error"]})
+                    finally:
+                        page.close()
                 context.close(); browser.close()
+            if successful==0:
+                evidence["status"]="ERROR"; evidence["errors"]=errors
+            elif errors:
+                evidence["status"]="PARTIAL"; evidence["errors"]=errors
+            evidence["successful_viewports"]=successful; evidence["failed_viewports"]=len(errors)
             self.last_evidence=evidence
-            return {key:(CONFIRMED if aggregate.get(key,False) else NOT_REPRODUCED) for key in aggregate}
+            return {(f["signature"],f.get("occurrence",0)):(CONFIRMED if aggregate.get((f["signature"],f.get("occurrence",0)),False) else (NOT_REPRODUCED if successful else ERROR)) for f in findings}
         except Exception as exc:
-            evidence["status"]="ERROR"; evidence["error"]=type(exc).__name__+": "+str(exc); self.last_evidence=evidence
-            return {(f["signature"],f["occurrence"]):ERROR for f in findings}
+            evidence["status"]="ERROR"; evidence["errors"]=errors+[{"error":type(exc).__name__+": "+str(exc)[:300]}]; self.last_evidence=evidence
+            return {(f["signature"],f.get("occurrence",0)):ERROR for f in findings}
