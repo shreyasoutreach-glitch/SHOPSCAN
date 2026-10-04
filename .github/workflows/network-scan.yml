@@ -38,8 +38,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-rendered.txt pytest==8.4.2
           python -m playwright install --with-deps chromium
-      - name: Run unit and repair tests
-        run: python -m pytest -q tests/test_rendered.py tests/test_repair.py tests/test_semantic.py tests/test_adversarial.py tests/test_client_package.py
+      - name: Compile every Python module
+        run: python -m compileall -q dom.py fetch.py names.py scan.py shopify.py rendered.py rendered_playwright.py repair.py semantic.py client_package.py network_runner.py simulations tests
+      - name: Run full test suite
+        run: python -m pytest -q
       - name: Capture test diagnostics
         if: always()
         run: |
