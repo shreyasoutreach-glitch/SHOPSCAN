@@ -44,6 +44,7 @@ def build_client_package(scan_result, repair_result=None):
         },
         "work_queue":findings,
         "repairs":repairs,
+        "repair_regression":(repair_result or {}).get("regression", {"status":"NOT_RUN"}),
         "review_queue":proposals,
         "acceptance_plan":[
             "Apply reviewed repairs in a staging theme.",
