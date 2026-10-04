@@ -172,7 +172,9 @@ if FastAPI:
             # serious keyboard/focus defects even when source-level rules find nothing.
             try:
                 from interaction import audit as interaction_audit
-                interaction_findings, interaction_evidence = interaction_audit(first["final"], timeout_ms=15000, settle_ms=700)
+                interaction_findings, interaction_evidence = interaction_audit(
+                    first["final"], timeout_ms=15000, settle_ms=700
+                )
                 for item in interaction_findings:
                     item["url"] = first["final"]
                     item["source_repairable"] = False
@@ -180,6 +182,13 @@ if FastAPI:
                 result["interaction_evidence"] = interaction_evidence
                 result["interaction_status"] = interaction_evidence.get("status", "UNKNOWN")
                 result["findings"].extend(interaction_findings)
+            except Exception as exc:
+                result["interaction_findings"] = []
+                result["interaction_status"] = "ERROR"
+                result["interaction_evidence"] = {
+                    "status": "ERROR",
+                    "error": type(exc).__name__ + ": " + str(exc)[:300],
+                }
 
             # Scan the bounded same-origin page set discovered from the storefront homepage.
             # The homepage is already represented above, so only additional pages are merged.
@@ -205,28 +214,12 @@ if FastAPI:
                         finding["source_page"] = final_url
                         finding["source_repairable"] = False
                         result.setdefault("candidate_findings", []).append(finding)
+                result["multipage_status"] = "OK"
             except Exception as exc:
                 result["page_reports"] = []
                 result["scanned_pages"] = 1
                 result["multipage_status"] = "ERROR"
                 result["multipage_error"] = type(exc).__name__ + ": " + str(exc)[:300]
-            else:
-                result["multipage_status"] = "OK"
-            except Exception as exc:
-                result["interaction_findings"] = []
-                result["interaction_status"] = "ERROR"
-                result["interaction_evidence"] = {
-                    "status": "ERROR",
-                    "error": type(exc).__name__ + ": " + str(exc)[:300],
-                }
-            except Exception as exc:
-                result["candidate_findings"] = [{**f, "rendered_verification": ERROR} for f in result["findings"]]
-                result["findings"] = []
-                result["rendered_status"] = "ERROR"
-                result["rendered_evidence"] = {
-                    "status": "ERROR",
-                    "error": type(exc).__name__ + ": " + str(exc)[:300],
-                }
 
             result["finding_count"] = len(result["findings"])
             result["candidate_count"] = len(result.get("candidate_findings", []))
