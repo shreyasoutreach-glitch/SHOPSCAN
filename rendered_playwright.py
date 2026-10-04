@@ -89,7 +89,7 @@ OBSERVE_JS = r'''
   const dynamic_findings=[];
   const dynamicRules=["image-alt","label","button-name","link-name","frame-title","html-has-lang","document-title","meta-viewport","duplicate-id","aria-reference","empty-aria-label","aria-hidden-focusable"];
   for(const [s,els] of Object.entries(byRule)){
-    const [rule,tag,shapeValue]=s.split("|");
+    const [rule,tag,shapeValue]=s.split("|",2);
     if(!dynamicRules.includes(rule)) continue;
     els.forEach((e,occurrence)=>dynamic_findings.push({
       rule,tag,shape:shapeValue,occurrence,
@@ -140,6 +140,7 @@ class PlaywrightVerifier(RenderedVerifier):
         return guard
 
     def verify(self, url, findings):
+        self.last_dynamic_findings=[]
         candidates=[{"signature":f["signature"],"occurrence":f.get("occurrence",0)} for f in findings]
         evidence={"status":"OK","url":url,"viewports":[],"browser":"chromium","candidate_count":len(candidates)}
         aggregate={}; successful=0; errors=[]
@@ -166,12 +167,11 @@ class PlaywrightVerifier(RenderedVerifier):
                         page.wait_for_timeout(min(800,self.settle_ms))
                         page.evaluate("window.scrollTo(0, 0)")
                         observed=page.evaluate(OBSERVE_JS,candidates)
-                        evidence["viewports"][-1:]
                         successful += 1
                         for item in observed.get("candidates",[]):
                             key=(item["signature"],item["occurrence"])
                             aggregate[key]=aggregate.get(key,False) or bool(item["found"])
-                                        evidence["viewports"].append({"width":width,"height":height,"http_status":response.status if response else None,"final_url":page.url,"title":observed.get("title",""),"ready_state":observed.get("ready_state"),"element_count":observed.get("element_count",0),"scroll_height":observed.get("scroll_height",0),"console_error_count":len(console_errors),"page_error_count":len(page_errors),"request_failure_count":len(request_failures),"page_errors":page_errors[:3],
+                        evidence["viewports"].append({"width":width,"height":height,"http_status":response.status if response else None,"final_url":page.url,"title":observed.get("title",""),"ready_state":observed.get("ready_state"),"element_count":observed.get("element_count",0),"scroll_height":observed.get("scroll_height",0),"console_error_count":len(console_errors),"page_error_count":len(page_errors),"request_failure_count":len(request_failures),"page_errors":page_errors[:3],
                             "script_urls":observed.get("script_urls",[]),"iframe_urls":observed.get("iframe_urls",[]),
                             "marker_hints":observed.get("marker_hints",[]),"global_hints":observed.get("global_hints",[]),"dynamic_findings":observed.get("dynamic_findings",[])})
                     except Exception as exc:
