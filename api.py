@@ -244,6 +244,23 @@ if FastAPI:
             if repair_input is not result["findings"]:
                 for item in repair_result.get("repairs", []):
                     item["verification_scope"] = "static_candidate_unverified"
+
+            if repair_result.get("changed"):
+                try:
+                    from regression import verify_patch
+                    repair_result["regression"] = verify_patch(
+                        src,
+                        repair_result.get("html", src),
+                        repair_result.get("repairs", []),
+                    )
+                except Exception as exc:
+                    repair_result["regression"] = {
+                        "status": "ERROR",
+                        "error": type(exc).__name__ + ": " + str(exc)[:300],
+                    }
+            else:
+                repair_result["regression"] = {"status": "NOT_RUN", "checks": []}
+
             package = build_client_package(result, repair_result)
             scan_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
             persistence_status = "PERSISTED" if save_scan(scan_id, result) else "STATELESS"
