@@ -33,10 +33,11 @@ def test_language_can_be_repaired_when_configured():
     r=repair_html(src,[f("html-has-lang",src,"<html>")],default_language="en")
     assert '<html lang="en">' in r["html"]
 
-def test_empty_title_can_use_site_name():
+def test_site_name_does_not_become_page_title_without_review():
     src='<html><head><meta property="og:site_name" content="ACME"><title></title></head></html>'
     r=repair_html(src,[f("document-title",src,"<title></title>")])
-    assert '<title>ACME</title>' in r["html"]
+    assert r["html"]==src
+    assert r["proposals"][0]["confidence"]=="REVIEW_REQUIRED"
 
 def test_semantic_names_are_never_invented():
     src='<button></button><a href="/x"></a><input type="text"><iframe src="/frame"></iframe>'
