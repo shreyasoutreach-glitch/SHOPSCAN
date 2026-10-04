@@ -4,8 +4,9 @@ from hashlib import sha256
 from dom import Tree, walk, ws, element_path, stable_signature
 from names import build_id_index, name_evidence
 from shopify import detect_platform, market_signals, collect
+from advanced_rules import analyze_advanced
 
-SCANNER_VERSION = "1.4.0"
+SCANNER_VERSION = "1.5.0"
 OBSERVATION = "static_html"
 SNIPPET_MAX = 400
 RULES = {
@@ -68,6 +69,14 @@ def analyze(src, url="", headers=None):
             except ValueError: capped = False
             if zoom_off or capped: record(n, "meta-viewport", "meta-viewport")
             break
+    advanced_findings, advanced_advisories = analyze_advanced(src, nodes)
+    node_by_off = {n.off: n for n in nodes}
+    for extra in advanced_findings + advanced_advisories:
+        extra["url"] = url
+        node = node_by_off.get(extra.get("off"))
+        extra["path"] = element_path(node) if node is not None else ""
+    findings.extend(advanced_findings)
+    advisories.extend(advanced_advisories)
     host = url.split("//", 1)[-1].split("/", 1)[0] if url else ""; lim = sorted(tree.limitations)
     return {"findings": findings, "advisories": advisories, "skipped": skipped, "limitations": lim,
             "complete": not lim, "context": context(nodes, host, headers),
