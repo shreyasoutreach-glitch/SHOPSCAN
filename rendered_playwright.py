@@ -86,8 +86,25 @@ OBSERVE_JS = r'''
     if(e.getAttribute("aria-hidden")==="true"&&[...e.querySelectorAll("a[href],button,input,select,textarea,summary,iframe,[tabindex]")].some(focusable)) add("aria-hidden-focusable",e);
   }
   const counts={}; for(const [s,els] of Object.entries(byRule))counts[s]=els.length;
+  const dynamic_findings=[];
+  const dynamicRules=["image-alt","label","button-name","link-name","frame-title","html-has-lang","document-title","meta-viewport","duplicate-id","aria-reference","empty-aria-label","aria-hidden-focusable"];
+  for(const [s,els] of Object.entries(byRule)){
+    const [rule,tag,shapeValue]=s.split("|");
+    if(!dynamicRules.includes(rule)) continue;
+    els.forEach((e,occurrence)=>dynamic_findings.push({
+      rule,tag,shape:shapeValue,occurrence,
+      signature:"dynamic|"+rule+"|"+tag+"|"+shapeValue,
+      evidence:{tag,shape:shapeValue,outer:e.outerHTML?.slice(0,500)||""}
+    }));
+  }
+  const scriptUrls=[...document.scripts].map(x=>x.src).filter(Boolean);
+  const iframeUrls=[...document.querySelectorAll("iframe,frame")].map(x=>x.src).filter(Boolean);
+  const markerHints=[...document.querySelectorAll("[id],[class]")].slice(0,2500).map(e=>(e.id||"")+" "+(typeof e.className==="string"?e.className:"")).filter(Boolean);
+  const globalHints=["acsbapp","accessiBe","UserWay","userway","AudioEye","EqualWeb","equalweb","LevelAccess","AccessiWay"].filter(k=>k in window);
   return {
     candidates:candidates.map(c=>({signature:c.signature,occurrence:Number(c.occurrence||0),count:counts[c.signature]||0,found:(counts[c.signature]||0)>Number(c.occurrence||0)})),
+    dynamic_findings,script_urls,iframe_urls,marker_hints:markerHints.slice(0,200),
+    global_hints:globalHints,
     element_count:deep.length,title:document.title,final_url:location.href,ready_state:document.readyState,scroll_height:document.documentElement?.scrollHeight||0
   };
 }
@@ -149,11 +166,14 @@ class PlaywrightVerifier(RenderedVerifier):
                         page.wait_for_timeout(min(800,self.settle_ms))
                         page.evaluate("window.scrollTo(0, 0)")
                         observed=page.evaluate(OBSERVE_JS,candidates)
+                        evidence["viewports"][-1:]
                         successful += 1
                         for item in observed.get("candidates",[]):
                             key=(item["signature"],item["occurrence"])
                             aggregate[key]=aggregate.get(key,False) or bool(item["found"])
-                        evidence["viewports"].append({"width":width,"height":height,"http_status":response.status if response else None,"final_url":page.url,"title":observed.get("title",""),"ready_state":observed.get("ready_state"),"element_count":observed.get("element_count",0),"scroll_height":observed.get("scroll_height",0),"console_error_count":len(console_errors),"page_error_count":len(page_errors),"request_failure_count":len(request_failures),"page_errors":page_errors[:3]})
+                                        evidence["viewports"].append({"width":width,"height":height,"http_status":response.status if response else None,"final_url":page.url,"title":observed.get("title",""),"ready_state":observed.get("ready_state"),"element_count":observed.get("element_count",0),"scroll_height":observed.get("scroll_height",0),"console_error_count":len(console_errors),"page_error_count":len(page_errors),"request_failure_count":len(request_failures),"page_errors":page_errors[:3],
+                            "script_urls":observed.get("script_urls",[]),"iframe_urls":observed.get("iframe_urls",[]),
+                            "marker_hints":observed.get("marker_hints",[]),"global_hints":observed.get("global_hints",[]),"dynamic_findings":observed.get("dynamic_findings",[])})
                     except Exception as exc:
                         errors.append({"viewport":[width,height],"error":type(exc).__name__+": "+str(exc)[:300]})
                         evidence["viewports"].append({"width":width,"height":height,"error":errors[-1]["error"]})
@@ -165,6 +185,21 @@ class PlaywrightVerifier(RenderedVerifier):
             elif errors:
                 evidence["status"]="PARTIAL"; evidence["errors"]=errors
             evidence["successful_viewports"]=successful; evidence["failed_viewports"]=len(errors)
+            # Expose independent hydrated-DOM findings. These are not restricted to
+            # the static candidate set, which lets the browser discover injected widget defects.
+            dynamic_seen={}
+            for vp in evidence.get("viewports",[]):
+                for item in vp.get("dynamic_findings",[]):
+                    key=(item.get("rule"),item.get("tag"),item.get("shape"),int(item.get("occurrence",0)))
+                    dynamic_seen[key]=item
+            self.last_dynamic_findings=[]
+            for (rule,tag,shape,occurrence),item in dynamic_seen.items():
+                self.last_dynamic_findings.append({
+                    "rule":rule,"base_rule":rule,"impact":{"image-alt":"critical","label":"critical","button-name":"critical","link-name":"serious","frame-title":"serious","html-has-lang":"serious","document-title":"serious","meta-viewport":"moderate","duplicate-id":"serious","aria-reference":"serious","empty-aria-label":"serious","aria-hidden-focusable":"serious"}.get(rule,"moderate"),
+                    "observation":"hydrated_browser_dom","signature":item.get("signature"),
+                    "occurrence":occurrence,"url":url,"viewport_evidence":[v for v in evidence.get("viewports",[]) if any(d.get("signature")==item.get("signature") for d in v.get("dynamic_findings",[]))],
+                    "evidence":item.get("evidence",{})
+                })
             self.last_evidence=evidence
             return {(f["signature"],f.get("occurrence",0)):(CONFIRMED if aggregate.get((f["signature"],f.get("occurrence",0)),False) else (NOT_REPRODUCED if successful else ERROR)) for f in findings}
         except Exception as exc:
