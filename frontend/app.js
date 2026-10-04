@@ -1,5 +1,5 @@
 const API = window.A11YFORGE_API || "https://a11yforge-api-docker.onrender.com";
-const routes={dashboard:"Overview",scan:"New scan",findings:"Findings",evidence:"Evidence"};
+const routes={dashboard:"Overview",scan:"New scan",findings:"Findings",evidence:"Evidence",repairs:"Repairs"};
 const title=document.getElementById("page-title");
 const form=document.getElementById("scan-form");
 const status=document.getElementById("scan-status");
@@ -17,6 +17,7 @@ function renderRoute(){
   title.textContent=routes[r];
   if(r==="findings") renderFindings();
   if(r==="evidence") renderEvidence();
+  if(r==="repairs") renderRepairs();
   renderDashboard();
 }
 window.addEventListener("hashchange",renderRoute);
@@ -63,10 +64,10 @@ function renderDashboard(){
 function getFindings(){return lastScan?.package?.work_queue||[]}
 
 function renderResult(data){
-  const r=data.result||{}, findings=getFindings(), score=findings.reduce((n,f)=>n+(f.impact==="critical"?14:f.impact==="serious"?9:f.impact==="moderate"?5:1),0);
+  const r=data.result||{}, findings=getFindings(), score=findings.reduce((n,f)=>n+(f.impact==="critical"?14:f.impact==="serious"?9:f.impact==="moderate"?5:1),0), repairs=data.repair?.repairs||data.package?.repairs||[];
   result.className="result-card card";
   result.innerHTML='<div class="result-top"><div><span class="eyebrow">VERIFIED ASSESSMENT</span><h3>'+escapeHtml(r.domain||r.url||"Merchant")+'</h3><p class="muted">'+(r.rendered_status==="OK"?"Chromium verification passed":"Browser verification: "+escapeHtml(r.rendered_status||"unknown"))+" · "+findings.length+' verified findings</p></div><div><span class="eyebrow">RISK SIGNAL</span><div class="score">'+score+'</div></div></div>'+
-    '<div class="result-actions"><a class="button primary" href="#findings">View '+findings.length+' findings</a><a class="button" href="#evidence">Open evidence</a><button class="button" id="rescan-button" type="button">Scan another store</button></div>'+
+    '<div class="result-actions"><a class="button primary" href="#findings">View '+findings.length+' findings</a><a class="button" href="#evidence">Open evidence</a><a class="button" href="#repairs">Open repairs</a><button class="button" id="rescan-button" type="button">Scan another store</button></div>'+
     '<div style="margin-top:20px">'+(findings.length?findings.map(f=>findingMarkup(f)).join(""):'<div class="empty"><h2>No verified findings</h2><p>The engine did not retain a finding after browser verification.</p></div>')+'</div>';
   document.getElementById("rescan-button")?.addEventListener("click",()=>{location.hash="scan";document.getElementById("url")?.focus()});
 }
@@ -86,6 +87,25 @@ function renderFindings(){
     const text="A11yForge finding\nRule: "+(f.rule||f.base_rule)+"\nImpact: "+(f.impact||"moderate")+"\nPriority: "+(f.priority_score??"review")+"\nSnippet: "+(f.snippet||"");
     try{await navigator.clipboard.writeText(text);btn.textContent="Copied";setTimeout(()=>btn.textContent="Copy finding",1200)}catch{btn.textContent="Copy failed"}
   }));
+}
+
+function renderRepairs(){
+  const el=document.getElementById("repairs-list");
+  if(!lastScan){el.innerHTML='<div class="empty card"><span class="eyebrow">NO ACTIVE SCAN</span><h2>Nothing to repair yet</h2><p>Run a verified scan first.</p><a class="button primary" href="#scan">Start scan</a></div>';return}
+  const repairs=lastScan.repair?.repairs||lastScan.package?.repairs||[], proposals=lastScan.repair?.proposals||lastScan.package?.review_queue||[];
+  let html='<div class="repair-summary"><div class="card"><span>Safe repairs</span><strong>'+repairs.length+'</strong><small>Deterministic source transforms</small></div><div class="card"><span>Review required</span><strong>'+proposals.length+'</strong><small>Semantic meaning cannot be safely invented</small></div></div>';
+  html+='<div class="card repair-panel"><div class="card-head"><div><span class="eyebrow">PATCH ARTIFACT</span><h3>Generated source repair</h3></div><span class="tag">'+(repairs.length?'READY':'NO SAFE PATCHES')+'</span></div>';
+  html+='<p class="muted">'+(repairs.length?'The engine generated deterministic changes from verified findings. This is a patch artifact, not a live Shopify deployment.':'No verified finding in this scan had a safe deterministic source transform.')+'</p>';
+  if(repairs.length) html+='<div class="repair-list">'+repairs.map(x=>'<div class="repair-row"><strong>'+escapeHtml(x.rule||"repair")+'</strong><span>'+escapeHtml(x.action||"safe repair")+'</span><code>'+escapeHtml(x.signature||"")+'</code></div>').join("")+'</div>';
+  if(proposals.length) html+='<details class="review-box"><summary>'+proposals.length+' review items</summary><pre>'+escapeHtml(JSON.stringify(proposals,null,2))+'</pre></details>';
+  html+='<div class="result-actions">'+(repairs.length?'<button class="button primary" id="download-repair" type="button">Download patched HTML</button>':'')+'<a class="button" href="#findings">Open findings</a></div></div>';
+  el.innerHTML=html;
+  document.getElementById("download-repair")?.addEventListener("click",()=>{
+    const source=lastScan.repair?.html;
+    if(typeof source!=="string")return;
+    const blob=new Blob([source],{type:"text/html;charset=utf-8"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="a11yforge-"+(lastScan.scan_id||"scan")+"-patched.html";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
 }
 
 function renderEvidence(){
