@@ -43,12 +43,18 @@ def diff(previous, current):
     new=sorted(curr-prev)
     fixed=sorted(prev-curr)
     unchanged=sorted(prev&curr)
+    source_changed=bool(previous) and (
+        previous.get("theme_hash") != current.get("theme_hash") or
+        previous.get("third_party_script_hash") != current.get("third_party_script_hash")
+    )
     if not previous:
         status="BASELINE"
     elif new:
         status="REGRESSED"
     elif fixed:
         status="IMPROVED"
+    elif source_changed:
+        status="SOURCE_CHANGED"
     else:
         status="UNCHANGED"
     return {
@@ -59,6 +65,7 @@ def diff(previous, current):
         "new_count":len(new),
         "fixed_count":len(fixed),
         "unchanged_count":len(unchanged),
+        "source_changed":source_changed,
         "previous_fingerprint":hashlib.sha256(json.dumps(previous or {},sort_keys=True,separators=(",",":")).encode()).hexdigest(),
         "current_fingerprint":hashlib.sha256(json.dumps(current or {},sort_keys=True,separators=(",",":")).encode()).hexdigest(),
     }
