@@ -28,3 +28,10 @@ def test_monitoring_unchanged():
     d=diff(old,new)
     assert d["status"]=="UNCHANGED"
     assert d["new_count"]==0 and d["fixed_count"]==0
+
+def test_monitoring_flags_source_change():
+    old=snapshot({**_result("button-name"),"theme_hash":"a","third_party_script_hash":"a"})
+    new=snapshot({**_result("button-name"),"theme_hash":"b","third_party_script_hash":"a"})
+    d=diff(old,new)
+    assert d["status"]=="SOURCE_CHANGED"
+    assert d["source_changed"] is True
