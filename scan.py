@@ -6,7 +6,7 @@ from names import build_id_index, name_evidence
 from shopify import detect_platform, market_signals, collect
 from advanced_rules import analyze_advanced
 
-SCANNER_VERSION = "1.5.0"
+SCANNER_VERSION = "1.6.0"
 OBSERVATION = "static_html"
 SNIPPET_MAX = 400
 RULES = {
