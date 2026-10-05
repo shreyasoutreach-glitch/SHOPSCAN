@@ -30,3 +30,5 @@ jobs:
           path: |
             results.json
             customers_100.json
+
+# Final Phase 0-3 gate: rerun the randomized corpus on the current tree.
