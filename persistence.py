@@ -304,3 +304,12 @@ def list_monitor_events(target_id,limit=20):
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         with conn.cursor() as cur:
             return _rows(cur,"SELECT id,scan_id,created_at,status,diff_json FROM monitor_events WHERE target_id=%s ORDER BY created_at DESC LIMIT %s",(target_id,max(1,min(int(limit),100)),))
+
+
+def latest_scan_for_client(client_id):
+    if not configured(): return None
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT s.result_json FROM scan_runs s JOIN monitor_targets m ON m.last_scan_id=s.id WHERE m.client_id=%s ORDER BY s.created_at DESC LIMIT 1""",(client_id,))
+            row=cur.fetchone()
+    return row[0] if row else None
