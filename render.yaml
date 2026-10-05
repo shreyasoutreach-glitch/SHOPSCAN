@@ -24,3 +24,5 @@ services:
         sync: false
       - key: A11YFORGE_MAX_CLIENTS
         value: "100"
+      - key: A11YFORGE_MAX_MONITOR_TARGETS
+        value: "20"
