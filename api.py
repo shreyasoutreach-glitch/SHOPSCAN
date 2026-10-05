@@ -106,6 +106,7 @@ if FastAPI:
 
     class WorkspaceRequest(BaseModel):
         name: str = Field(min_length=1,max_length=160)
+        brand_name: str | None = Field(default=None,max_length=160)
 
     class ClientRequest(BaseModel):
         workspace_id: int
@@ -209,7 +210,7 @@ if FastAPI:
         auth=get_authorization(domain) or {}
         if auth.get("state")!=GRANTED:
             raise HTTPException(status_code=403,detail="Monitoring requires GRANTED domain authorization.")
-        tid=add_monitor_target(url,req.cadence_minutes,client=client["id"])
+        tid=add_monitor_target(url,req.cadence_minutes,client_id=client["id"])
         return {"id":tid,"url":url,"cadence_minutes":req.cadence_minutes,"authorization_state":GRANTED}
 
     @app.get("/api/agency/monitor-targets/{target_id}/events")
