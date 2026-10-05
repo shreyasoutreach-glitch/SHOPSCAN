@@ -35,7 +35,7 @@ except ImportError:
     FastAPI = None
 
 if FastAPI:
-    app = FastAPI(title="A11yForge API", version="1.6.0")
+    app = FastAPI(title="A11yForge API", version="1.7.0")
     allowed = [x.strip().rstrip("/") for x in os.getenv(
         "A11YFORGE_CORS",
         "http://localhost:3000,http://127.0.0.1:3000"
@@ -345,7 +345,7 @@ if FastAPI:
             src = first["body"].decode(first.get("charset") or "utf-8", "replace")
             result = analyze(src, first["final"], first["headers"])
             result["theme_hash"] = hashlib.sha256(src.encode("utf-8")).hexdigest()
-            result["scanner_version"] = "1.6.0"
+            result["scanner_version"] = "1.7.0"
             result["overlay_evidence"] = {"source": [{"vendor":v,"confidence":"MEDIUM","signals":["static-signature"],"source_observed":True,"runtime_observed":False} for v in result.get("context",{}).get("overlays",[])]}
             result.update({
                 "url": first["final"],
