@@ -44,7 +44,7 @@ def _record(src, n, base, rule, occurrence, evidence=None, advisory=False):
         "length": len(raw), "snippet": raw[:400], "snippet_truncated": len(raw)>400,
         "context": src[n.off:n.off+240], "path": "", "signature": stable_signature(rule,n),
         "occurrence": occurrence, "name_evidence": evidence or {},
-        "scanner_version": "1.5.0", "reproducible_with_axe": not advisory,
+        "scanner_version": "1.6.0", "reproducible_with_axe": not advisory,
     }
 
 def analyze_advanced(src, nodes):
