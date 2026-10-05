@@ -20,7 +20,7 @@ from overlay_signatures import detect_source_overlays
 from evidence_ledger import assessment_ledger
 from overlay_truth import run_overlay_truth_test
 from authorization import NOT_REQUESTED, REQUESTED, GRANTED, DECLINED, normalize_domain, issue_token, token_digest, instructions, verify as verify_domain
-from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope
+from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope\nfrom agency import normalize_name, share_token, share_digest, expiry_iso\nfrom monitoring import snapshot as monitoring_snapshot, diff as monitoring_diff\nfrom persistence import (create_workspace, list_workspaces, create_client, list_clients, create_share_link, get_share_link,\n                          add_monitor_target, due_monitor_targets, record_monitor_run, latest_monitor_snapshot, list_monitor_events)
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -91,6 +91,145 @@ if FastAPI:
             raise HTTPException(status_code=400, detail=str(exc))
         save_authorization(domain,DECLINED,token_digest(issue_token()))
         return {"domain":domain,"state":DECLINED}
+
+    def _agency_key(request):
+        expected=os.getenv("A11YFORGE_AGENCY_KEY","").strip()
+        supplied=request.headers.get("X-A11yForge-Agency-Key","").strip()
+        if not expected or not supplied or supplied!=expected:
+            raise HTTPException(status_code=403, detail="Agency workspace authorization is not configured or the supplied key is invalid.")
+        return supplied
+
+    class WorkspaceRequest(BaseModel):
+        name: str = Field(min_length=1,max_length=160)
+
+    class ClientRequest(BaseModel):
+        workspace_id: int
+        name: str = Field(min_length=1,max_length=160)
+        domain: str = Field(min_length=3,max_length=253)
+
+    class MonitorRequest(BaseModel):
+        client_id: int
+        url: str = Field(min_length=4,max_length=2048)
+        cadence_minutes: int = Field(default=1440,ge=60,le=10080)
+
+    @app.post("/api/agency/workspaces")
+    def agency_workspace_create(req: WorkspaceRequest, request: Request):
+        key=_agency_key(request)
+        if not configured():
+            raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
+        return {"id":create_workspace(normalize_name(req.name),key),"name":req.name.strip()}
+
+    @app.get("/api/agency/workspaces")
+    def agency_workspace_list(request: Request):
+        key=_agency_key(request)
+        if not configured():
+            raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
+        return {"workspaces":list_workspaces(key)}
+
+    @app.post("/api/agency/clients")
+    def agency_client_create(req: ClientRequest, request: Request):
+        key=_agency_key(request)
+        if not configured():
+            raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
+        workspaces=list_workspaces(key)
+        if not any(int(w["id"])==req.workspace_id for w in workspaces):
+            raise HTTPException(status_code=404,detail="Workspace not found.")
+        domain=normalize_domain(req.domain)
+        return {"id":create_client(req.workspace_id,normalize_name(req.name),domain),"domain":domain}
+
+    @app.get("/api/agency/workspaces/{workspace_id}/clients")
+    def agency_client_list(workspace_id: int, request: Request):
+        key=_agency_key(request)
+        if not configured():
+            raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
+        if not any(int(w["id"])==workspace_id for w in list_workspaces(key)):
+            raise HTTPException(status_code=404,detail="Workspace not found.")
+        return {"clients":list_clients(workspace_id)}
+
+    @app.post("/api/agency/monitor-targets")
+    def agency_monitor_create(req: MonitorRequest, request: Request):
+        key=_agency_key(request)
+        if not configured():
+            raise HTTPException(status_code=503,detail="Monitoring persistence requires DATABASE_URL.")
+        all_clients=[]
+        for w in list_workspaces(key):
+            all_clients.extend(list_clients(int(w["id"])))
+        client=next((x for x in all_clients if int(x["id"])==req.client_id),None)
+        if not client:
+            raise HTTPException(status_code=404,detail="Client not found.")
+        url=normalize_url(req.url)
+        domain=urlsplit(url).hostname
+        auth=get_authorization(domain) or {}
+        if auth.get("state")!=GRANTED:
+            raise HTTPException(status_code=403,detail="Monitoring requires GRANTED domain authorization.")
+        tid=add_monitor_target(url,req.cadence_minutes,client=client["id"])
+        return {"id":tid,"url":url,"cadence_minutes":req.cadence_minutes,"authorization_state":GRANTED}
+
+    @app.get("/api/agency/monitor-targets/{target_id}/events")
+    def agency_monitor_events(target_id: int, request: Request):
+        _agency_key(request)
+        if not configured():
+            raise HTTPException(status_code=503,detail="Monitoring persistence requires DATABASE_URL.")
+        return {"events":list_monitor_events(target_id)}
+
+    @app.post("/api/monitor/run-due")
+    def monitor_run_due(request: Request):
+        secret=os.getenv("A11YFORGE_MONITOR_SECRET","").strip()
+        supplied=request.headers.get("X-A11yForge-Monitor-Secret","").strip()
+        if not secret or supplied!=secret:
+            raise HTTPException(status_code=403,detail="Invalid monitor secret.")
+        if not configured():
+            raise HTTPException(status_code=503,detail="Monitoring persistence requires DATABASE_URL.")
+        import urllib.request
+        base=os.getenv("A11YFORGE_INTERNAL_URL","").strip().rstrip("/")
+        if not base:
+            raise HTTPException(status_code=503,detail="A11YFORGE_INTERNAL_URL is not configured.")
+        outcomes=[]
+        for target in due_monitor_targets(limit=10):
+            try:
+                body=json.dumps({"url":target["url"]}).encode()
+                req=urllib.request.Request(base+"/api/scan",data=body,headers={"Content-Type":"application/json","User-Agent":"A11yForge-Monitor/1.0"},method="POST")
+                with urllib.request.urlopen(req,timeout=120) as resp:
+                    payload=json.loads(resp.read().decode())
+                current=monitoring_snapshot(payload["result"])
+                previous=latest_monitor_snapshot(target["id"])
+                changes=monitoring_diff(previous,current)
+                record_monitor_run(target["id"],payload["scan_id"],changes["status"],previous,current,changes)
+                outcomes.append({"target_id":target["id"],"scan_id":payload["scan_id"],"status":changes["status"],"new":changes["new_count"],"fixed":changes["fixed_count"]})
+            except Exception as exc:
+                outcomes.append({"target_id":target["id"],"status":"ERROR","error":type(exc).__name__+":"+str(exc)[:240]})
+        return {"processed":len(outcomes),"outcomes":outcomes}
+
+    @app.post("/api/agency/clients/{client_id}/share")
+    def agency_share_create(client_id: int, request: Request):
+        key=_agency_key(request)
+        if not configured():
+            raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
+        clients=[]
+        for w in list_workspaces(key):
+            clients.extend(list_clients(int(w["id"])))
+        if not any(int(c["id"])==client_id for c in clients):
+            raise HTTPException(status_code=404,detail="Client not found.")
+        token=share_token()
+        sid=create_share_link(client_id,share_digest(token),expiry_iso(7))
+        return {"id":sid,"token":token,"expires_at":expiry_iso(7),"human_review_required":True}
+
+    @app.get("/api/share/{token}")
+    def agency_share_view(token: str):
+        if not configured():
+            raise HTTPException(status_code=503,detail="Shared evidence requires DATABASE_URL.")
+        link=get_share_link(share_digest(token))
+        if not link:
+            raise HTTPException(status_code=404,detail="Share link is invalid or expired.")
+        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+            with conn.cursor() as cur:
+                cur.execute("""SELECT s.result_json FROM scan_runs s
+                               JOIN monitor_targets m ON m.last_scan_id=s.id
+                               WHERE m.client_id=%s ORDER BY s.created_at DESC LIMIT 1""",(link["client_id"],))
+                row=cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404,detail="No retained scan evidence is available for this client.")
+        return {"client_id":link["client_id"],"result":row[0],"report_disclaimer":"Evidence report, not legal advice or certification."}
 
     _scan_slots = threading.BoundedSemaphore(2)
     _rate_lock = threading.Lock()
