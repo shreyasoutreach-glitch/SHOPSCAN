@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS monitor_events (
     current_snapshot JSONB NOT NULL,
     diff_json JSONB NOT NULL
 );
-ALTER TABLE monitor_targets ADD COLUMN IF NOT EXISTS workspace_id BIGINT;
+ALTER TABLE agency_workspaces ADD COLUMN IF NOT EXISTS brand_name TEXT;\nALTER TABLE monitor_targets ADD COLUMN IF NOT EXISTS workspace_id BIGINT;
 ALTER TABLE monitor_targets ADD COLUMN IF NOT EXISTS client_id BIGINT;
 CREATE INDEX IF NOT EXISTS idx_monitor_events_target_time ON monitor_events(target_id,created_at DESC);
 """
@@ -319,3 +319,11 @@ def list_monitor_targets_for_client(client_id):
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         with conn.cursor() as cur:
             return _rows(cur,"SELECT id,url,cadence_minutes,last_run_at,last_status,last_scan_id FROM monitor_targets WHERE client_id=%s ORDER BY id",(client_id,))
+
+def get_client_brand(client_id):
+    if not configured(): return None
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT w.brand_name FROM agency_clients c JOIN agency_workspaces w ON w.id=c.workspace_id WHERE c.id=%s",(client_id,))
+            row=cur.fetchone()
+    return row[0] if row else None
