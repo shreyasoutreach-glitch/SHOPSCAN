@@ -27,13 +27,14 @@ def evidence_hash(finding, vendors, shipped_status, blocked_status):
     }
     return hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
 
-def run_overlay_truth_test(url, findings, source_overlays, verifier_factory):
+def run_overlay_truth_test(url, findings, source_overlays, verifier_factory, shipped=None, shipped_evidence=None):
     vendors=sorted({x.get("vendor") for x in source_overlays if x.get("vendor")})
     if not vendors:
         return {"status":"NOT_APPLICABLE","vendors":[],"findings":[],"deterministic":True}
-    shipped_verifier=verifier_factory(())
-    shipped=shipped_verifier.verify(url,findings)
-    shipped_evidence=shipped_verifier.last_evidence
+    if shipped is None:
+        shipped_verifier=verifier_factory(())
+        shipped=shipped_verifier.verify(url,findings)
+        shipped_evidence=shipped_verifier.last_evidence
     blocked_verifier=verifier_factory(tuple(vendors))
     blocked=blocked_verifier.verify(url,findings)
     blocked_evidence=blocked_verifier.last_evidence
