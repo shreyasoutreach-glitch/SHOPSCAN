@@ -128,7 +128,7 @@ function renderEvidence(){
     '<div><span>Scan ID</span><strong>'+escapeHtml(lastScan.scan_id||"n/a")+'</strong></div>'+
     '<div><span>Final URL</span><strong>'+escapeHtml(evidence.final_url||r.url||"n/a")+'</strong></div>'+
     '<div><span>Verified findings</span><strong>'+findings.length+'</strong></div>'+
-    '<div><span>Interaction findings</span><strong>'+(r.interaction_findings?.length||0)+'</strong></div>'+\
+    '<div><span>Interaction findings</span><strong>'+(r.interaction_findings?.length||0)+'</strong></div>'+
     '<div><span>Pages scanned</span><strong>'+(r.scanned_pages||1)+'</strong></div>'+
     '<div><span>HTTP status</span><strong>'+escapeHtml(evidence.http_status||"n/a")+'</strong></div>'+
     '</div><details><summary>Raw evidence</summary><pre>'+escapeHtml(JSON.stringify({result:r,findings},null,2))+'</pre></details><div class="result-actions"><button class="button primary" id="download-evidence" type="button">Export evidence JSON</button><a class="button" href="#findings">Open findings</a></div></div>';
