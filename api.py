@@ -24,7 +24,7 @@ from authorization import NOT_REQUESTED, REQUESTED, GRANTED, DECLINED, normalize
 from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope
 from agency import normalize_name, share_token, share_digest, expiry_iso
 from monitoring import snapshot as monitoring_snapshot, diff as monitoring_diff
-from persistence import (create_workspace, list_workspaces, create_client, list_clients, create_share_link, get_share_link, count_workspace_clients,
+from persistence import (create_workspace, list_workspaces, create_client, list_clients, create_share_link, get_share_link, count_workspace_clients, count_client_targets,
                           add_monitor_target, due_monitor_targets, record_monitor_run, latest_monitor_snapshot, list_monitor_events, latest_scan_for_client, list_monitor_targets_for_client, get_client_brand)
 
 try:
@@ -202,8 +202,7 @@ if FastAPI:
         client=next((x for x in all_clients if int(x["id"])==req.client_id),None)
         if not client:
             raise HTTPException(status_code=404,detail="Client not found.")
-        url=normalize_url(req.url)
-        domain=urlsplit(url).hostname
+        if count_client_targets(client["id"]) >= int(os.getenv("A11YFORGE_MAX_MONITOR_TARGETS","20")):\n            raise HTTPException(status_code=409,detail="Client monitoring target limit reached.")\n        url=normalize_url(req.url)\n        domain=urlsplit(url).hostname
         auth=get_authorization(domain) or {}
         if auth.get("state")!=GRANTED:
             raise HTTPException(status_code=403,detail="Monitoring requires GRANTED domain authorization.")
