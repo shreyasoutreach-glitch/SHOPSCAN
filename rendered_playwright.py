@@ -7,6 +7,7 @@ fails conservatively when the browser cannot produce a trustworthy observation.
 from rendered import RenderedVerifier, CONFIRMED, NOT_REPRODUCED, ERROR
 from fetch import is_public_url
 from urllib.parse import urlsplit
+from overlay_signatures import OVERLAY_SIGNATURES
 
 OBSERVE_JS = r'''
 (candidates) => {
@@ -116,15 +117,28 @@ DEFAULT_VIEWPORTS = ((1440, 1000), (390, 844))
 class PlaywrightVerifier(RenderedVerifier):
     name = "playwright-dom-v2"
 
-    def __init__(self, timeout_ms=20000, settle_ms=1200, headless=True, viewports=None):
+    def __init__(self, timeout_ms=20000, settle_ms=1200, headless=True, viewports=None, blocked_vendors=()):
         self.timeout_ms=max(1000,int(timeout_ms)); self.settle_ms=max(0,int(settle_ms)); self.headless=headless
         self.viewports=tuple(viewports or DEFAULT_VIEWPORTS); self.last_evidence={}
+        self.blocked_vendors=tuple(sorted(set(blocked_vendors or ())))
+
+    def _overlay_request_blocked(self, request_url):
+        blob=(request_url or "").lower()
+        for vendor in self.blocked_vendors:
+            sig=OVERLAY_SIGNATURES.get(vendor,{})
+            for family in ("domains","scripts","iframes"):
+                if any(token.lower() in blob for token in sig.get(family,())):
+                    return True
+        return False
 
     def _guard(self, initial_url):
         initial_host=(urlsplit(initial_url).hostname or "").lower().rstrip(".")
         cache={}
         def guard(route):
             target=route.request.url
+            if self._overlay_request_blocked(target):
+                route.abort()
+                return
             if target.startswith(("data:","blob:","about:")):
                 route.continue_(); return
             try:
@@ -142,7 +156,7 @@ class PlaywrightVerifier(RenderedVerifier):
     def verify(self, url, findings):
         self.last_dynamic_findings=[]
         candidates=[{"signature":f["signature"],"occurrence":f.get("occurrence",0)} for f in findings]
-        evidence={"status":"OK","url":url,"viewports":[],"browser":"chromium","candidate_count":len(candidates)}
+        evidence={"status":"OK","url":url,"viewports":[],"browser":"chromium","candidate_count":len(candidates),"overlay_blocked_vendors":list(self.blocked_vendors)}
         aggregate={}; successful=0; errors=[]
         try:
             from playwright.sync_api import sync_playwright
