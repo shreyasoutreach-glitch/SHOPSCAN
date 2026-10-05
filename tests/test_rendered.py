@@ -10,6 +10,7 @@ def fake_playwright(found=True):
         url="https://example.com/"
         def on(self,*args): pass
         def set_viewport_size(self,*args): pass
+        def route(self,*args,**kwargs): pass
         def goto(self,*args,**kwargs): return Response()
         def wait_for_timeout(self,*args): pass
         def evaluate(self,js,candidates=None):
