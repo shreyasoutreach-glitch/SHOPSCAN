@@ -14,10 +14,12 @@ from fetch import Fetcher, is_public_url
 from scan import analyze
 from client_package import build_client_package
 from repair import repair_html
-from persistence import save_scan, configured, init_schema
+from persistence import save_scan, configured, init_schema, save_authorization, get_authorization, log_scan_request
 from crawl import discover
 from overlay_signatures import detect_source_overlays
 from evidence_ledger import assessment_ledger
+from authorization import NOT_REQUESTED, REQUESTED, GRANTED, DECLINED, normalize_domain, issue_token, token_digest, instructions, verify as verify_domain
+from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -47,6 +49,47 @@ if FastAPI:
 
     class ScanRequest(BaseModel):
         url: str = Field(min_length=4, max_length=2048)
+
+    class DomainRequest(BaseModel):
+        domain: str = Field(min_length=3, max_length=253)
+
+    @app.post("/api/authorization/request")
+    def authorization_request(req: DomainRequest):
+        try:
+            domain=normalize_domain(req.domain)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        if blocked_domain(domain):
+            return {"domain":domain,"state":DECLINED,"reason":"Domain is present on an opt-out or do-not-scan list."}
+        token=issue_token()
+        save_authorization(domain,REQUESTED,token_digest(token))
+        return {"domain":domain,"state":REQUESTED,"verification":instructions(domain,token)}
+
+    @app.post("/api/authorization/verify-token")
+    def authorization_verify_token(req: DomainRequest, request: Request):
+        try:
+            domain=normalize_domain(req.domain)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        row=get_authorization(domain)
+        token=request.headers.get("X-A11yForge-Verification","").strip()
+        if not row or row.get("state")!=REQUESTED or not token or token_digest(token)!=row.get("token_digest"):
+            raise HTTPException(status_code=409, detail="No matching pending authorization token.")
+        fetcher=Fetcher(delay=2.0,timeout=15,max_bytes=3_000_000)
+        result=verify_domain(domain,token,fetcher)
+        if not result["granted"]:
+            raise HTTPException(status_code=422, detail="Verification token was not found in the domain DNS TXT record or homepage meta tag.")
+        save_authorization(domain,GRANTED,token_digest(token),result["method"])
+        return {"domain":domain,"state":GRANTED,"verification_method":result["method"]}
+
+    @app.post("/api/authorization/decline")
+    def authorization_decline(req: DomainRequest):
+        try:
+            domain=normalize_domain(req.domain)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        save_authorization(domain,DECLINED,token_digest(issue_token()))
+        return {"domain":domain,"state":DECLINED}
 
     _scan_slots = threading.BoundedSemaphore(2)
     _rate_lock = threading.Lock()
@@ -95,7 +138,20 @@ if FastAPI:
             raise HTTPException(status_code=429, detail="Scanner is at capacity. Try again shortly.")
         try:
             url = normalize_url(req.url)
-            fetcher = Fetcher(delay=0.4, timeout=20, max_bytes=3_000_000)
+            domain=urlsplit(url).hostname
+            auth_row=get_authorization(domain) or {}
+            auth_state=auth_row.get("state",NOT_REQUESTED)
+            request_id=uuid4().hex
+            preview=PUBLIC_PREVIEW and auth_state!=GRANTED
+            if blocked_domain(domain):
+                log_scan_request(request_id,domain,url,auth_state,"BLOCKED_BY_POLICY",client_key,preview)
+                raise HTTPException(status_code=403, detail="This domain is on an A11yForge do-not-scan or opt-out list.")
+            if auth_state!=GRANTED and not preview:
+                log_scan_request(request_id,domain,url,auth_state,"NOT_AUTHORIZED",client_key,False)
+                raise HTTPException(status_code=403, detail="Domain authorization is required before scanning. Request ownership verification first.")
+            scope=scan_scope(auth_state==GRANTED)
+            log_scan_request(request_id,domain,url,auth_state,"ACCEPTED",client_key,preview)
+            fetcher = Fetcher(delay=2.0, timeout=20, max_bytes=3_000_000)
             first = fetcher.page(url)
             if first["state"] != "OK":
                 raise HTTPException(
@@ -110,11 +166,13 @@ if FastAPI:
             result.update({
                 "url": first["final"],
                 "domain": urlsplit(first["final"]).hostname,
+                "authorization_state": auth_state,
+                "scan_scope": scope,
                 "verified_loads": 1,
                 "repeat_load_status": "PENDING",
                 "http_status": first["status"],
                 "fetch_ms": round(first["elapsed"] * 1000),
-                "discovered_pages": discover(first["final"], src, max_pages=max(1, min(4, int(os.getenv("A11YFORGE_CRAWL_PAGES", "4"))))),
+                "discovered_pages": discover(first["final"], src, max_pages=scope["max_pages"]),
             })
 
             second = fetcher.page(first["final"])
@@ -217,7 +275,7 @@ if FastAPI:
                     first["final"],
                     result.get("discovered_pages", []),
                     fetcher=fetcher,
-                    max_pages=max(1, min(4, int(os.getenv("A11YFORGE_CRAWL_PAGES", "4")))),
+                    max_pages=scope["max_pages"],
                 )
                 result["page_reports"] = page_reports
                 result["scanned_pages"] = len(page_reports)
@@ -254,6 +312,8 @@ if FastAPI:
                 f["rendered_verification"]="CONFIRMED"
                 result["findings"].append(f)
                 existing.add(key)
+            result["findings"]=apply_suppressions(domain,result["findings"])
+            result["candidate_findings"]=apply_suppressions(domain,result.get("candidate_findings",[]))
             result["finding_count"] = len(result["findings"])
             result["candidate_count"] = len(result.get("candidate_findings", []))
             result["assessment_status"] = "VERIFIED" if result.get("rendered_status") == "OK" else "VERIFICATION_LIMIT"
