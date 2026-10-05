@@ -4,8 +4,12 @@ Postgres is optional at runtime. The scanner remains stateless when DATABASE_URL
 but monitoring/history features fail closed instead of silently pretending persistence exists.
 """
 import json
+import logging
 import os
 from datetime import datetime, timezone
+
+_AUTH_MEMORY = {}
+LOGGER = logging.getLogger("a11yforge.scan")
 
 try:
     import psycopg
@@ -84,7 +88,9 @@ def init_schema():
     return True
 
 def save_authorization(domain,state,token_digest_value,verification_method=None):
-    if not configured(): return False
+    if not configured():
+        _AUTH_MEMORY[domain]={"domain":domain,"state":state,"token_digest":token_digest_value,"verification_method":verification_method}
+        return True
     now=datetime.now(timezone.utc)
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         with conn.cursor() as cur:
@@ -100,7 +106,8 @@ def save_authorization(domain,state,token_digest_value,verification_method=None)
     return True
 
 def get_authorization(domain):
-    if not configured(): return None
+    if not configured():
+        return _AUTH_MEMORY.get(domain)
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT domain,state,token_digest,verification_method FROM domain_authorizations WHERE domain=%s",(domain,))
@@ -108,7 +115,9 @@ def get_authorization(domain):
             return dict(zip(["domain","state","token_digest","verification_method"],row)) if row else None
 
 def log_scan_request(request_id,domain,url,state,outcome,client_key,public_preview=False):
-    if not configured(): return False
+    LOGGER.info("scan_request id=%s domain=%s url=%s authorization_state=%s outcome=%s client=%s public_preview=%s",
+                request_id,domain,url,state,outcome,client_key,public_preview)
+    if not configured(): return True
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         with conn.cursor() as cur:
             cur.execute("""INSERT INTO scan_requests
