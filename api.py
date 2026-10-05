@@ -18,6 +18,7 @@ from persistence import save_scan, configured, init_schema, save_authorization, 
 from crawl import discover
 from overlay_signatures import detect_source_overlays
 from evidence_ledger import assessment_ledger
+from overlay_truth import run_overlay_truth_test
 from authorization import NOT_REQUESTED, REQUESTED, GRANTED, DECLINED, normalize_domain, issue_token, token_digest, instructions, verify as verify_domain
 from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope
 
@@ -234,6 +235,20 @@ if FastAPI:
                 for item in runtime_overlays:
                     by_vendor.setdefault(item["vendor"],[]).extend(item.get("signals",[]))
                 result["overlay_evidence"]["runtime"]=[{"vendor":v,"confidence":"HIGH" if len(set(s))>=2 else "MEDIUM","signals":sorted(set(s))[:12],"source_observed":bool(result["overlay_evidence"].get("source")),"runtime_observed":True} for v,s in by_vendor.items()]
+                source_overlays=result["overlay_evidence"].get("source",[])
+                if source_overlays:
+                    truth=run_overlay_truth_test(
+                        first["final"],static_candidates,source_overlays,
+                        lambda blocked: PlaywrightVerifier(timeout_ms=20000,settle_ms=900,blocked_vendors=blocked),
+                        shipped=statuses,shipped_evidence=verifier.last_evidence
+                    )
+                    result["overlay_evidence"]["truth_test"]=truth
+                    truth_by_key={(x["signature"],x["occurrence"]):x for x in truth.get("findings",[])}
+                    for finding in result.get("findings",[]):
+                        row=truth_by_key.get((finding.get("signature"),finding.get("occurrence",0)))
+                        if row: finding["evidence_hash"]=row["evidence_hash"]
+                else:
+                    result["overlay_evidence"]["truth_test"]={"status":"NOT_APPLICABLE","vendors":[],"findings":[],"deterministic":True}
             except Exception as exc:
                 result["candidate_findings"] = [{**f, "rendered_verification": ERROR} for f in result.get("findings", [])]
                 result["findings"] = []
