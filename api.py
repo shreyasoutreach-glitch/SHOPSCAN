@@ -20,7 +20,7 @@ from overlay_signatures import detect_source_overlays
 from evidence_ledger import assessment_ledger
 from overlay_truth import run_overlay_truth_test
 from authorization import NOT_REQUESTED, REQUESTED, GRANTED, DECLINED, normalize_domain, issue_token, token_digest, instructions, verify as verify_domain
-from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope\nfrom agency import normalize_name, share_token, share_digest, expiry_iso\nfrom monitoring import snapshot as monitoring_snapshot, diff as monitoring_diff\nfrom persistence import (create_workspace, list_workspaces, create_client, list_clients, create_share_link, get_share_link,\n                          add_monitor_target, due_monitor_targets, record_monitor_run, latest_monitor_snapshot, list_monitor_events)
+from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope\nfrom agency import normalize_name, share_token, share_digest, expiry_iso\nfrom monitoring import snapshot as monitoring_snapshot, diff as monitoring_diff\nfrom persistence import (create_workspace, list_workspaces, create_client, list_clients, create_share_link, get_share_link,\n                          add_monitor_target, due_monitor_targets, record_monitor_run, latest_monitor_snapshot, list_monitor_events, latest_scan_for_client)
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -211,8 +211,9 @@ if FastAPI:
         if not any(int(c["id"])==client_id for c in clients):
             raise HTTPException(status_code=404,detail="Client not found.")
         token=share_token()
-        sid=create_share_link(client_id,share_digest(token),expiry_iso(7))
-        return {"id":sid,"token":token,"expires_at":expiry_iso(7),"human_review_required":True}
+        expiry=expiry_iso(7)
+        sid=create_share_link(client_id,share_digest(token),expiry)
+        return {"id":sid,"token":token,"expires_at":expiry,"human_review_required":True}
 
     @app.get("/api/share/{token}")
     def agency_share_view(token: str):
@@ -221,16 +222,10 @@ if FastAPI:
         link=get_share_link(share_digest(token))
         if not link:
             raise HTTPException(status_code=404,detail="Share link is invalid or expired.")
-        with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
-            with conn.cursor() as cur:
-                cur.execute("""SELECT s.result_json FROM scan_runs s
-                               JOIN monitor_targets m ON m.last_scan_id=s.id
-                               WHERE m.client_id=%s ORDER BY s.created_at DESC LIMIT 1""",(link["client_id"],))
-                row=cur.fetchone()
-        if not row:
+        result=latest_scan_for_client(link["client_id"])
+        if not result:
             raise HTTPException(status_code=404,detail="No retained scan evidence is available for this client.")
-        return {"client_id":link["client_id"],"result":row[0],"report_disclaimer":"Evidence report, not legal advice or certification."}
-
+        return {"client_id":link["client_id"],"result":result,"report_disclaimer":"Evidence report, not legal advice or certification."}
     _scan_slots = threading.BoundedSemaphore(2)
     _rate_lock = threading.Lock()
     _rate_window = {}
