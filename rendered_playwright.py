@@ -43,7 +43,7 @@ OBSERVE_JS = r'''
   const byRule={};
   const add=(rule,e)=>{const s=rule+'|'+e.tagName.toLowerCase()+'|'+shape(e);(byRule[s]??=[]).push(e)};
   for(const e of deep){
-    if(!visible(e))continue; const t=e.tagName.toLowerCase();
+    const t=e.tagName.toLowerCase(); if(!visible(e)&&t!=="meta")continue;
     if(t==='img'&&!e.hasAttribute('alt')&&e.getAttribute('role')!=='presentation'&&e.getAttribute('role')!=='none'&&!named(e).ok)add('image-alt',e);
     if(['input','textarea','select'].includes(t)){
       const typ=(e.getAttribute('type')||'text').toLowerCase();
