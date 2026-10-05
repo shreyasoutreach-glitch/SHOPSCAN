@@ -4,6 +4,7 @@ Thin API layer over the verified scanning engine. The UI never contains scanning
 """
 import os
 import re
+import hashlib
 import threading
 import time
 from datetime import datetime, timezone
@@ -340,6 +341,7 @@ if FastAPI:
 
             src = first["body"].decode(first.get("charset") or "utf-8", "replace")
             result = analyze(src, first["final"], first["headers"])
+            result["theme_hash"] = hashlib.sha256(src.encode("utf-8")).hexdigest()
             result["scanner_version"] = "1.6.0"
             result["overlay_evidence"] = {"source": [{"vendor":v,"confidence":"MEDIUM","signals":["static-signature"],"source_observed":True,"runtime_observed":False} for v in result.get("context",{}).get("overlays",[])]}
             result.update({
@@ -401,6 +403,9 @@ if FastAPI:
                     "status", "UNKNOWN"
                 )
                 result["rendered_evidence"] = verifier.last_evidence
+                observed_scripts=[]
+                for vp in verifier.last_evidence.get("viewports",[]): observed_scripts.extend(vp.get("script_urls",[]))
+                result["third_party_script_hash"] = hashlib.sha256("\\n".join(sorted(set(observed_scripts))).encode("utf-8")).hexdigest() if observed_scripts else None
                 runtime_overlays=[]
                 for vp in verifier.last_evidence.get("viewports",[]):
                     runtime_overlays.extend(detect_source_overlays(
