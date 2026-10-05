@@ -1,0 +1,1 @@
+Trigger randomized 100-customer simulation after verifier metadata fix.
