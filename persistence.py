@@ -313,3 +313,9 @@ def latest_scan_for_client(client_id):
             cur.execute("""SELECT s.result_json FROM scan_runs s JOIN monitor_targets m ON m.last_scan_id=s.id WHERE m.client_id=%s ORDER BY s.created_at DESC LIMIT 1""",(client_id,))
             row=cur.fetchone()
     return row[0] if row else None
+
+def list_monitor_targets_for_client(client_id):
+    if not configured(): return []
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        with conn.cursor() as cur:
+            return _rows(cur,"SELECT id,url,cadence_minutes,last_run_at,last_status,last_scan_id FROM monitor_targets WHERE client_id=%s ORDER BY id",(client_id,))
