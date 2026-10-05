@@ -137,35 +137,32 @@ if FastAPI:
         domain=normalize_domain(req.domain)
         return {"id":create_client(req.workspace_id,normalize_name(req.name),domain),"domain":domain}
 
-    @app.post("/api/agency/clients/bulk")
-    def agency_client_bulk(request: Request):
-        key=_agency_key(request)
-        if not configured(): raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
-        raw=(request.query_params.get("workspace_id") or "").strip()
-        if not raw: raise HTTPException(status_code=400,detail="workspace_id is required.")
-        workspace_id=int(raw)
-        if not any(int(w["id"])==workspace_id for w in list_workspaces(key)): raise HTTPException(status_code=404,detail="Workspace not found.")
-        body=request.scope.get("_body_cache")
-        # FastAPI Request is async-only here; use the synchronous body already provided by the client via the dedicated text endpoint.
-        raise HTTPException(status_code=501,detail="Use /api/agency/clients/bulk-text with CSV body.")
+    class BulkClientRequest(BaseModel):
+        workspace_id: int
+        csv_text: str = Field(min_length=1,max_length=2_000_000)
 
-    @app.post("/api/agency/clients/bulk-text")
-    def agency_client_bulk_text(request: Request):
+    @app.post("/api/agency/clients/bulk")
+    def agency_client_bulk(req: BulkClientRequest, request: Request):
         key=_agency_key(request)
-        if not configured(): raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
-        workspace_raw=request.headers.get("X-A11yForge-Workspace-Id","").strip()
-        csv_text=request.headers.get("X-A11yForge-CSV","")
-        if not workspace_raw or not csv_text: raise HTTPException(status_code=400,detail="Provide X-A11yForge-Workspace-Id and X-A11yForge-CSV.")
-        workspace_id=int(workspace_raw)
-        if not any(int(w["id"])==workspace_id for w in list_workspaces(key)): raise HTTPException(status_code=404,detail="Workspace not found.")
+        if not configured():
+            raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
+        if not any(int(w["id"])==req.workspace_id for w in list_workspaces(key)):
+            raise HTTPException(status_code=404,detail="Workspace not found.")
         import csv, io
-        rows=list(csv.DictReader(io.StringIO(csv_text)))
+        rows=list(csv.DictReader(io.StringIO(req.csv_text)))
+        if not rows or "name" not in rows[0] or "domain" not in rows[0]:
+            raise HTTPException(status_code=400,detail="CSV must contain name and domain columns.")
         max_clients=int(os.getenv("A11YFORGE_MAX_CLIENTS","100"))
-        if count_workspace_clients(workspace_id)+len(rows)>max_clients: raise HTTPException(status_code=409,detail="Workspace client limit reached.")
+        if count_workspace_clients(req.workspace_id)+len(rows)>max_clients:
+            raise HTTPException(status_code=409,detail="Workspace client limit reached.")
         created=[]
         for row in rows:
-            name=normalize_name(row.get("name","")); domain=normalize_domain(row.get("domain",""))
-            created.append({"id":create_client(workspace_id,name,domain),"name":name,"domain":domain})
+            try:
+                name=normalize_name(row.get("name",""))
+                domain=normalize_domain(row.get("domain",""))
+                created.append({"id":create_client(req.workspace_id,name,domain),"name":name,"domain":domain})
+            except ValueError as exc:
+                raise HTTPException(status_code=400,detail=str(exc))
         return {"created":created,"count":len(created)}
 
     @app.get("/api/agency/clients/{client_id}/dashboard")
