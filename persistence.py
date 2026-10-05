@@ -206,7 +206,14 @@ def _rows(cur, sql, params=()):
     cols=[d.name for d in cur.description] if cur.description else []
     return [dict(zip(cols,row)) for row in cur.fetchall()]
 
-def count_workspace_clients(workspace_id):\n    if not configured(): return 0\n    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:\n        with conn.cursor() as cur:\n            cur.execute("SELECT COUNT(*) FROM agency_clients WHERE workspace_id=%s",(workspace_id,))\n            return int(cur.fetchone()[0])\n\ndef create_workspace(name, owner_key, brand_name=None):
+def count_workspace_clients(workspace_id):
+    if not configured(): return 0
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM agency_clients WHERE workspace_id=%s",(workspace_id,))
+            return int(cur.fetchone()[0])
+
+def create_workspace(name, owner_key, brand_name=None):
     if not configured(): return None
     now=datetime.now(timezone.utc)
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
