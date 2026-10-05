@@ -18,6 +18,7 @@ RULES = {
     "document-title": ("document-title", ["2.4.2"], "A", "page has no title"),
     "meta-viewport": ("meta-viewport", ["1.4.4"], "AA", "moderate", "zooming disabled in the viewport meta tag"),
     "frame-title": ("frame-title", ["4.1.2"], "A", "serious", "iframe with no title"),
+    "positive-tabindex": ("positive-tabindex", ["2.4.3"], "A", "moderate", "positive tabindex can disrupt logical focus order"),
 }
 IMPACT_POINTS = {"critical": 14, "serious": 9, "moderate": 5}
 OVERLAYS = {"accessiBe": ("acsbapp", "accessibe.com"), "UserWay": ("userway.org",), "AudioEye": ("audioeye.com",),
@@ -56,6 +57,10 @@ def analyze(src, url="", headers=None):
         elif t == "button": judged(n, "button-name", name_evidence(n, index, labels, "button"))
         elif t == "a" and "href" in at: judged(n, "link-name", name_evidence(n, index, labels, "link"))
         elif t in ("iframe", "frame"): judged(n, "frame-title", name_evidence(n, index, labels, "frame"))
+        if "tabindex" in at:
+            try: positive_tabindex=int(at["tabindex"])>0
+            except ValueError: positive_tabindex=False
+            if positive_tabindex: record(n, "advisory:positive-tabindex", "positive-tabindex", {"tabindex":at["tabindex"]}, advisory=True)
     html_n = next((n for n in nodes if n.tag == "html"), None)
     if html_n is not None:
         if not html_n.attrs.get("lang", "").strip() and not html_n.attrs.get("xml:lang", "").strip(): record(html_n, "html-has-lang", "html-has-lang")
