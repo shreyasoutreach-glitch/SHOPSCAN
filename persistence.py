@@ -204,12 +204,12 @@ def _rows(cur, sql, params=()):
     cols=[d.name for d in cur.description] if cur.description else []
     return [dict(zip(cols,row)) for row in cur.fetchall()]
 
-def create_workspace(name, owner_key):
+def count_workspace_clients(workspace_id):\n    if not configured(): return 0\n    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:\n        with conn.cursor() as cur:\n            cur.execute("SELECT COUNT(*) FROM agency_clients WHERE workspace_id=%s",(workspace_id,))\n            return int(cur.fetchone()[0])\n\ndef create_workspace(name, owner_key, brand_name=None):
     if not configured(): return None
     now=datetime.now(timezone.utc)
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         with conn.cursor() as cur:
-            cur.execute("INSERT INTO agency_workspaces(name,owner_key,created_at) VALUES (%s,%s,%s) RETURNING id",(name,owner_key,now))
+            cur.execute("INSERT INTO agency_workspaces(name,owner_key,created_at,brand_name) VALUES (%s,%s,%s,%s) RETURNING id",(name,owner_key,now,brand_name))
             wid=cur.fetchone()[0]
         conn.commit()
     return wid
@@ -218,7 +218,7 @@ def list_workspaces(owner_key):
     if not configured(): return []
     with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
         with conn.cursor() as cur:
-            return _rows(cur,"SELECT id,name,created_at FROM agency_workspaces WHERE owner_key=%s ORDER BY id",(owner_key,))
+            return _rows(cur,"SELECT id,name,created_at,brand_name FROM agency_workspaces WHERE owner_key=%s ORDER BY id",(owner_key,))
 
 def create_client(workspace_id,name,domain):
     if not configured(): return None
