@@ -336,3 +336,10 @@ def get_client_brand(client_id):
             cur.execute("SELECT w.brand_name FROM agency_clients c JOIN agency_workspaces w ON w.id=c.workspace_id WHERE c.id=%s",(client_id,))
             row=cur.fetchone()
     return row[0] if row else None
+
+def count_client_targets(client_id):
+    if not configured(): return 0
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM monitor_targets WHERE client_id=%s AND active=TRUE",(client_id,))
+            return int(cur.fetchone()[0])
