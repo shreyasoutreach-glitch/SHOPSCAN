@@ -1,4 +1,23 @@
-# Changelog\n\n## 1.7.0\n\n\n\n### Phase 4\n- Added Postgres-backed agency workspaces and multi-client records.\n- Added configurable workspace client limits.\n- Added bulk CSV client onboarding.\n- Added per-client evidence-history dashboard endpoint.\n- Added seven-day expiring evidence share links with workspace branding.\n- Agency APIs require a separate agency key and never grant scan authorization.\n\n### Phase 5\n- Added evidence snapshots with deterministic finding fingerprints.\n- Added new/fixed/unchanged/regressed diff classification.\n- Added persisted monitoring events and target history.\n- Monitoring targets require pre-existing GRANTED domain authorization.\n- Added a protected due-target runner and scheduled GitHub Actions workflow.\n- Monitoring reuses the normal scan path so consent and scan safety controls are not bypassed.\n
+# Changelog
+
+## 1.7.0
+
+### Phase 4
+- Added Postgres-backed agency workspaces and multi-client records.
+- Added configurable workspace client limits.
+- Added bulk CSV client onboarding.
+- Added per-client evidence-history dashboard endpoint.
+- Added seven-day expiring evidence share links with workspace branding.
+- Agency APIs require a separate agency key and never grant scan authorization.
+
+### Phase 5
+- Added evidence snapshots with deterministic finding fingerprints.
+- Added new/fixed/unchanged/regressed diff classification.
+- Added persisted monitoring events and target history.
+- Monitoring targets require pre-existing GRANTED domain authorization.
+- Added a protected due-target runner and scheduled GitHub Actions workflow.
+- Monitoring reuses the normal scan path so consent and scan safety controls are not bypassed.
+
 
 ## 1.6.0
 
