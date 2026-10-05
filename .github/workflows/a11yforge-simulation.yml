@@ -11,6 +11,7 @@ on:
       - "names.py"
       - "rendered_playwright.py"
       - ".github/workflows/a11yforge-simulation.yml"
+      - "simulation/test_100_customers.py"
 
 jobs:
   adversarial-simulation:
@@ -26,4 +27,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: a11yforge-100-customer-results
-          path: simulation/results.json
+          path: |
+            results.json
+            customers_100.json
