@@ -33,8 +33,8 @@ def blocked_domain(domain):
 def suppressed_rules(domain):
     rules=[]
     for entry in _read(ROOT/"suppress.txt"):
-        if entry.startswith("rule:") and _matches(domain,entry[5:]):
-            rules.append(entry[5:])
+        if entry.startswith("rule:"):
+            rules.append(entry[5:].strip())
     return rules
 
 def apply_suppressions(domain,findings):
