@@ -1,0 +1,22 @@
+name: A11yForge Scheduled Monitoring
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run due monitoring targets
+        env:
+          A11YFORGE_INTERNAL_URL: ${{ secrets.A11YFORGE_INTERNAL_URL }}
+          A11YFORGE_MONITOR_SECRET: ${{ secrets.A11YFORGE_MONITOR_SECRET }}
+        run: |
+          test -n "$A11YFORGE_INTERNAL_URL"
+          test -n "$A11YFORGE_MONITOR_SECRET"
+          curl --fail-with-body --silent --show-error --max-time 900 \
+            -X POST "$A11YFORGE_INTERNAL_URL/api/monitor/run-due" \
+            -H "X-A11yForge-Monitor-Secret: $A11YFORGE_MONITOR_SECRET"
