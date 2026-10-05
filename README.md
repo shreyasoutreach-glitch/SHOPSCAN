@@ -1,4 +1,4 @@
-# A11yForge v1.6.0
+# A11yForge v1.7.0
 
 Accessibility intelligence, verification and conservative repair engine for ecommerce.
 
