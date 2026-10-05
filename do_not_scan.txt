@@ -1,0 +1,2 @@
+# Operator-maintained domains that A11yForge must never scan.
+# One domain per line. Subdomains are covered.
