@@ -46,6 +46,26 @@ CREATE TABLE IF NOT EXISTS finding_history (
 );
 CREATE INDEX IF NOT EXISTS idx_scan_runs_domain_created ON scan_runs(domain, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_finding_history_signature ON finding_history(signature);
+CREATE TABLE IF NOT EXISTS domain_authorizations (
+    domain TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    token_digest TEXT NOT NULL,
+    requested_at TIMESTAMPTZ NOT NULL,
+    verified_at TIMESTAMPTZ,
+    declined_at TIMESTAMPTZ,
+    verification_method TEXT
+);
+CREATE TABLE IF NOT EXISTS scan_requests (
+    id TEXT PRIMARY KEY,
+    requested_at TIMESTAMPTZ NOT NULL,
+    domain TEXT NOT NULL,
+    url TEXT NOT NULL,
+    authorization_state TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    client_key TEXT,
+    public_preview BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX IF NOT EXISTS idx_scan_requests_domain_time ON scan_requests(domain, requested_at DESC);
 """
 
 def configured():
@@ -60,6 +80,41 @@ def init_schema():
                 statement=statement.strip()
                 if statement:
                     cur.execute(statement)
+        conn.commit()
+    return True
+
+def save_authorization(domain,state,token_digest_value,verification_method=None):
+    if not configured(): return False
+    now=datetime.now(timezone.utc)
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO domain_authorizations
+                (domain,state,token_digest,requested_at,verified_at,declined_at,verification_method)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON CONFLICT (domain) DO UPDATE SET state=EXCLUDED.state,
+                token_digest=EXCLUDED.token_digest, verified_at=EXCLUDED.verified_at,
+                declined_at=EXCLUDED.declined_at, verification_method=EXCLUDED.verification_method""",
+                (domain,state,token_digest_value,now,now if state=="GRANTED" else None,
+                 now if state=="DECLINED" else None,verification_method))
+        conn.commit()
+    return True
+
+def get_authorization(domain):
+    if not configured(): return None
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT domain,state,token_digest,verification_method FROM domain_authorizations WHERE domain=%s",(domain,))
+            row=cur.fetchone()
+            return dict(zip(["domain","state","token_digest","verification_method"],row)) if row else None
+
+def log_scan_request(request_id,domain,url,state,outcome,client_key,public_preview=False):
+    if not configured(): return False
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO scan_requests
+                (id,requested_at,domain,url,authorization_state,outcome,client_key,public_preview)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (request_id,domain and datetime.now(timezone.utc),domain,url,state,outcome,client_key,public_preview))
         conn.commit()
     return True
 
