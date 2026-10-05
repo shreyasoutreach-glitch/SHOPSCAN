@@ -32,7 +32,9 @@ def snapshot(result):
         "finding_count":len(findings),
         "rendered_status":result.get("rendered_status","UNKNOWN"),
         "scanner_version":result.get("scanner_version"),
-        "evidence_head_hash":result.get("evidence_head_hash"),\n        "theme_hash":result.get("theme_hash"),\n        "third_party_script_hash":result.get("third_party_script_hash"),
+        "evidence_head_hash":result.get("evidence_head_hash"),
+        "theme_hash":result.get("theme_hash"),
+        "third_party_script_hash":result.get("third_party_script_hash"),
     }
 
 def diff(previous, current):
