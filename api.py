@@ -362,7 +362,7 @@ if FastAPI:
             else:
                 repair_result["regression"] = {"status": "NOT_RUN", "checks": []}
 
-            package = build_client_package(result, repair_result)
+            package = build_client_package(result, repair_result, source_html=src)
             scan_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
             persistence_status = "PERSISTED" if save_scan(scan_id, result) else "STATELESS"
             result["persistence_status"] = persistence_status
