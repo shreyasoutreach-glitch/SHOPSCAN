@@ -16,3 +16,11 @@ services:
         value: "4"
       - key: A11YFORGE_RATE_LIMIT
         value: "12"
+      - key: A11YFORGE_AGENCY_KEY
+        sync: false
+      - key: A11YFORGE_MONITOR_SECRET
+        sync: false
+      - key: A11YFORGE_INTERNAL_URL
+        sync: false
+      - key: A11YFORGE_MAX_CLIENTS
+        value: "100"
