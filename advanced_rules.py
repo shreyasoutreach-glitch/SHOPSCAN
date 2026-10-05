@@ -95,17 +95,6 @@ def analyze_advanced(src, nodes):
                 occ["empty-aria-label"]=occ.get("empty-aria-label",0)+1
                 if r: findings.append(r)
 
-        if "tabindex" in n.attrs:
-            try:
-                value=int(n.attrs["tabindex"])
-            except ValueError:
-                value=None
-            if value is not None and value>0:
-                r=_record(src,n,"positive-tabindex","positive-tabindex",occ.get("positive-tabindex",0),
-                          {"tabindex":value},advisory=True)
-                occ["positive-tabindex"]=occ.get("positive-tabindex",0)+1
-                if r: advisories.append(r)
-
     headings=[n for n in nodes if n.tag in {"h1","h2","h3","h4","h5","h6"} and n.hs=="visible"]
     previous=None
     for n in headings:
