@@ -20,7 +20,7 @@ from overlay_signatures import detect_source_overlays
 from evidence_ledger import assessment_ledger
 from overlay_truth import run_overlay_truth_test
 from authorization import NOT_REQUESTED, REQUESTED, GRANTED, DECLINED, normalize_domain, issue_token, token_digest, instructions, verify as verify_domain
-from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope\nfrom agency import normalize_name, share_token, share_digest, expiry_iso\nfrom monitoring import snapshot as monitoring_snapshot, diff as monitoring_diff\nfrom persistence import (create_workspace, list_workspaces, create_client, list_clients, create_share_link, get_share_link,\n                          add_monitor_target, due_monitor_targets, record_monitor_run, latest_monitor_snapshot, list_monitor_events, latest_scan_for_client)
+from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope\nfrom agency import normalize_name, share_token, share_digest, expiry_iso\nfrom monitoring import snapshot as monitoring_snapshot, diff as monitoring_diff\nfrom persistence import (create_workspace, list_workspaces, create_client, list_clients, create_share_link, get_share_link, count_workspace_clients,\n                          add_monitor_target, due_monitor_targets, record_monitor_run, latest_monitor_snapshot, list_monitor_events, latest_scan_for_client)
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -117,7 +117,7 @@ if FastAPI:
         key=_agency_key(request)
         if not configured():
             raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
-        return {"id":create_workspace(normalize_name(req.name),key),"name":req.name.strip()}
+        return {"id":create_workspace(normalize_name(req.name),key,normalize_name(req.brand_name) if req.brand_name else None),"name":req.name.strip()}
 
     @app.get("/api/agency/workspaces")
     def agency_workspace_list(request: Request):
@@ -137,6 +137,49 @@ if FastAPI:
         domain=normalize_domain(req.domain)
         return {"id":create_client(req.workspace_id,normalize_name(req.name),domain),"domain":domain}
 
+    @app.post("/api/agency/clients/bulk")
+    def agency_client_bulk(request: Request):
+        key=_agency_key(request)
+        if not configured(): raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
+        raw=(request.query_params.get("workspace_id") or "").strip()
+        if not raw: raise HTTPException(status_code=400,detail="workspace_id is required.")
+        workspace_id=int(raw)
+        if not any(int(w["id"])==workspace_id for w in list_workspaces(key)): raise HTTPException(status_code=404,detail="Workspace not found.")
+        body=request.scope.get("_body_cache")
+        # FastAPI Request is async-only here; use the synchronous body already provided by the client via the dedicated text endpoint.
+        raise HTTPException(status_code=501,detail="Use /api/agency/clients/bulk-text with CSV body.")
+
+    @app.post("/api/agency/clients/bulk-text")
+    def agency_client_bulk_text(request: Request):
+        key=_agency_key(request)
+        if not configured(): raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
+        workspace_raw=request.headers.get("X-A11yForge-Workspace-Id","").strip()
+        csv_text=request.headers.get("X-A11yForge-CSV","")
+        if not workspace_raw or not csv_text: raise HTTPException(status_code=400,detail="Provide X-A11yForge-Workspace-Id and X-A11yForge-CSV.")
+        workspace_id=int(workspace_raw)
+        if not any(int(w["id"])==workspace_id for w in list_workspaces(key)): raise HTTPException(status_code=404,detail="Workspace not found.")
+        import csv, io
+        rows=list(csv.DictReader(io.StringIO(csv_text)))
+        max_clients=int(os.getenv("A11YFORGE_MAX_CLIENTS","100"))
+        if count_workspace_clients(workspace_id)+len(rows)>max_clients: raise HTTPException(status_code=409,detail="Workspace client limit reached.")
+        created=[]
+        for row in rows:
+            name=normalize_name(row.get("name","")); domain=normalize_domain(row.get("domain",""))
+            created.append({"id":create_client(workspace_id,name,domain),"name":name,"domain":domain})
+        return {"created":created,"count":len(created)}
+
+    @app.get("/api/agency/clients/{client_id}/dashboard")
+    def agency_client_dashboard(client_id:int,request:Request):
+        key=_agency_key(request)
+        if not configured(): raise HTTPException(status_code=503,detail="Agency persistence requires DATABASE_URL.")
+        clients=[]
+        for w in list_workspaces(key): clients.extend(list_clients(int(w["id"])))
+        if not any(int(x["id"])==client_id for x in clients): raise HTTPException(status_code=404,detail="Client not found.")
+        # Dashboard data is evidence state only. It does not infer compliance.
+        events=[]
+        for target in due_monitor_targets(limit=100):
+            if target.get("client_id") and int(target["client_id"])==client_id: events.extend(list_monitor_events(target["id"],limit=5))
+        return {"client_id":client_id,"monitor_events":events[:20],"status":"EVIDENCE_HISTORY"}
     @app.get("/api/agency/workspaces/{workspace_id}/clients")
     def agency_client_list(workspace_id: int, request: Request):
         key=_agency_key(request)
