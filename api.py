@@ -20,7 +20,7 @@ from overlay_signatures import detect_source_overlays
 from evidence_ledger import assessment_ledger
 from overlay_truth import run_overlay_truth_test
 from authorization import NOT_REQUESTED, REQUESTED, GRANTED, DECLINED, normalize_domain, issue_token, token_digest, instructions, verify as verify_domain
-from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope\nfrom agency import normalize_name, share_token, share_digest, expiry_iso\nfrom monitoring import snapshot as monitoring_snapshot, diff as monitoring_diff\nfrom persistence import (create_workspace, list_workspaces, create_client, list_clients, create_share_link, get_share_link, count_workspace_clients,\n                          add_monitor_target, due_monitor_targets, record_monitor_run, latest_monitor_snapshot, list_monitor_events, latest_scan_for_client)
+from scan_policy import PUBLIC_PREVIEW, blocked_domain, apply_suppressions, scan_scope\nfrom agency import normalize_name, share_token, share_digest, expiry_iso\nfrom monitoring import snapshot as monitoring_snapshot, diff as monitoring_diff\nfrom persistence import (create_workspace, list_workspaces, create_client, list_clients, create_share_link, get_share_link, count_workspace_clients,\n                          add_monitor_target, due_monitor_targets, record_monitor_run, latest_monitor_snapshot, list_monitor_events, latest_scan_for_client, list_monitor_targets_for_client)
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -174,8 +174,8 @@ if FastAPI:
         if not any(int(x["id"])==client_id for x in clients): raise HTTPException(status_code=404,detail="Client not found.")
         # Dashboard data is evidence state only. It does not infer compliance.
         events=[]
-        for target in due_monitor_targets(limit=100):
-            if target.get("client_id") and int(target["client_id"])==client_id: events.extend(list_monitor_events(target["id"],limit=5))
+        targets=list_monitor_targets_for_client(client_id)
+        for target in targets: events.extend(list_monitor_events(target["id"],limit=5))
         return {"client_id":client_id,"monitor_events":events[:20],"status":"EVIDENCE_HISTORY"}
     @app.get("/api/agency/workspaces/{workspace_id}/clients")
     def agency_client_list(workspace_id: int, request: Request):
