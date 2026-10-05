@@ -61,3 +61,5 @@ report={"customers":100,"static_expected":static_exp,"static_detected":static_hi
 (ROOT/"results.json").write_text(json.dumps(report,indent=2))
 print(json.dumps({k:report[k] for k in ["customers","static_expected","static_detected","static_recall","browser_expected","browser_detected","browser_recall"]},indent=2))
 if report["static_recall"]<.95 or report["browser_recall"]<.90: raise SystemExit("ADVERSARIAL SIMULATION FAILED")
+
+# Final gate rerun after dependency pin.
