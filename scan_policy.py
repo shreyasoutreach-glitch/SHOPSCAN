@@ -28,7 +28,7 @@ def blocked_domain(domain):
     deny=_read(ROOT/"do_not_scan.txt")
     env=[x for x in os.getenv("A11YFORGE_DO_NOT_SCAN","").split(",") if x.strip()]
     suppressed=_read(ROOT/"suppress.txt")
-    return any(_matches(domain,x) for x in [*deny,*env,*suppressed if "@" not in x])
+    return any(_matches(domain,x) for x in [*deny,*env,*[x for x in suppressed if "@" not in x]])
 
 def suppressed_rules(domain):
     rules=[]
