@@ -69,7 +69,8 @@ CREATE TABLE IF NOT EXISTS scan_requests (
     client_key TEXT,
     public_preview BOOLEAN NOT NULL DEFAULT FALSE
 );
-CREATE INDEX IF NOT EXISTS idx_scan_requests_domain_time ON scan_requests(domain, requested_at DESC);\nCREATE TABLE IF NOT EXISTS agency_workspaces (
+CREATE INDEX IF NOT EXISTS idx_scan_requests_domain_time ON scan_requests(domain, requested_at DESC);
+CREATE TABLE IF NOT EXISTS agency_workspaces (
     id BIGSERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     owner_key TEXT NOT NULL,
@@ -100,7 +101,8 @@ CREATE TABLE IF NOT EXISTS monitor_events (
     current_snapshot JSONB NOT NULL,
     diff_json JSONB NOT NULL
 );
-ALTER TABLE agency_workspaces ADD COLUMN IF NOT EXISTS brand_name TEXT;\nALTER TABLE monitor_targets ADD COLUMN IF NOT EXISTS workspace_id BIGINT;
+ALTER TABLE agency_workspaces ADD COLUMN IF NOT EXISTS brand_name TEXT;
+ALTER TABLE monitor_targets ADD COLUMN IF NOT EXISTS workspace_id BIGINT;
 ALTER TABLE monitor_targets ADD COLUMN IF NOT EXISTS client_id BIGINT;
 CREATE INDEX IF NOT EXISTS idx_monitor_events_target_time ON monitor_events(target_id,created_at DESC);
 """
