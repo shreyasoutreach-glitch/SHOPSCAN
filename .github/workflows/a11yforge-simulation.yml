@@ -10,6 +10,7 @@ on:
       - "dom.py"
       - "names.py"
       - "rendered_playwright.py"
+      - ".github/workflows/a11yforge-simulation.yml"
 
 jobs:
   adversarial-simulation:
