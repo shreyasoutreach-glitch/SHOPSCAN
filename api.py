@@ -202,7 +202,10 @@ if FastAPI:
         client=next((x for x in all_clients if int(x["id"])==req.client_id),None)
         if not client:
             raise HTTPException(status_code=404,detail="Client not found.")
-        if count_client_targets(client["id"]) >= int(os.getenv("A11YFORGE_MAX_MONITOR_TARGETS","20")):\n            raise HTTPException(status_code=409,detail="Client monitoring target limit reached.")\n        url=normalize_url(req.url)\n        domain=urlsplit(url).hostname
+        if count_client_targets(client["id"]) >= int(os.getenv("A11YFORGE_MAX_MONITOR_TARGETS","20")):
+            raise HTTPException(status_code=409,detail="Client monitoring target limit reached.")
+        url=normalize_url(req.url)
+        domain=urlsplit(url).hostname
         auth=get_authorization(domain) or {}
         if auth.get("state")!=GRANTED:
             raise HTTPException(status_code=403,detail="Monitoring requires GRANTED domain authorization.")
@@ -404,7 +407,8 @@ if FastAPI:
                 result["rendered_evidence"] = verifier.last_evidence
                 observed_scripts=[]
                 for vp in verifier.last_evidence.get("viewports",[]): observed_scripts.extend(vp.get("script_urls",[]))
-                result["third_party_script_hash"] = hashlib.sha256("\\n".join(sorted(set(observed_scripts))).encode("utf-8")).hexdigest() if observed_scripts else None
+                result["third_party_script_hash"] = hashlib.sha256("\
+".join(sorted(set(observed_scripts))).encode("utf-8")).hexdigest() if observed_scripts else None
                 runtime_overlays=[]
                 for vp in verifier.last_evidence.get("viewports",[]):
                     runtime_overlays.extend(detect_source_overlays(
