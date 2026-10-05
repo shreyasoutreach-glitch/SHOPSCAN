@@ -23,3 +23,10 @@ def test_overlay_truth_records_findings_remaining_in_both_modes():
     r=run_overlay_truth_test("http://fixture.test/",[f],[{"vendor":"UserWay"}],lambda blocked:FakeVerifier(blocked))
     assert r["status"]=="COMPLETE"
     assert r["remaining_in_both"][0]["evidence_hash"]
+
+
+def test_overlay_blocker_matches_known_vendor_resource():
+    from rendered_playwright import PlaywrightVerifier
+    verifier=PlaywrightVerifier(blocked_vendors=("UserWay",))
+    assert verifier._overlay_request_blocked("https://cdn.userwaycdn.com/widget.js") is True
+    assert verifier._overlay_request_blocked("https://static.example.test/app.js") is False
