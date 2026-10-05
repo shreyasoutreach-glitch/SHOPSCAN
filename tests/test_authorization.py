@@ -25,3 +25,13 @@ def test_preview_is_one_page_and_marked_for_legal_review(monkeypatch):
     monkeypatch.setattr("scan_policy.PUBLIC_PREVIEW",True)
     s=scan_scope(False)
     assert s["mode"]=="PUBLIC_PREVIEW" and s["max_pages"]==1 and s["legal_review_required"] is True
+
+
+def test_meta_verification_uses_local_fixture_only():
+    from authorization import verify
+    class Fetcher:
+        def page(self,url):
+            return {"state":"OK","final":url,"charset":"utf-8","body":b'<html><head><meta name="a11yforge-verification" content="token-123"></head></html>'}
+    result=verify("fixture.test","token-123",Fetcher())
+    assert result["granted"] is True
+    assert result["method"]=="meta_tag"
