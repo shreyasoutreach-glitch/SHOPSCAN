@@ -5,6 +5,7 @@ Thin API layer over the verified scanning engine. The UI never contains scanning
 import os
 import re
 import hashlib
+import json
 import threading
 import time
 from datetime import datetime, timezone
