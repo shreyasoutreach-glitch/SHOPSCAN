@@ -1,7 +1,7 @@
 """shopscan.fetch -- polite, bounded HTTP."""
 import ipaddress, os, re, socket, threading, time, urllib.error, urllib.request, urllib.robotparser, zlib
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
-ROBOT_TOKEN="a11yforge"; CONTACT=os.getenv("SHOPSCAN_CONTACT","").strip(); UA="a11yforge/1.6 (+accessibility triage)" + (f" contact: {CONTACT}" if CONTACT else "")
+ROBOT_TOKEN="a11yforge"; CONTACT=os.getenv("SHOPSCAN_CONTACT","").strip(); UA="a11yforge/1.7 (+accessibility triage)" + (f" contact: {CONTACT}" if CONTACT else "")
 RETRIES=2; MAX_REDIRECTS=5; RETRY_AFTER_CAP=10.0; CRAWL_DELAY_CAP=30.0
 TRANSIENT={429,500,502,503,504}
 
