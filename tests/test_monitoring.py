@@ -6,7 +6,7 @@ from monitoring import snapshot,diff
 
 def _result(*rules):
     return {"findings":[{"rule":r,"signature":r+"|x","occurrence":0,"source_page":"https://fixture.test/"} for r in rules],
-            "rendered_status":"OK","scanner_version":"1.6.0","evidence_head_hash":"abc"}
+            "rendered_status":"OK","scanner_version":"1.7.0","evidence_head_hash":"abc"}
 
 def test_monitoring_baseline():
     cur=snapshot(_result("button-name"))
