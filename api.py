@@ -50,7 +50,7 @@ if FastAPI:
         allow_origins=allowed,
         allow_credentials=False,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-A11yForge-Verification", "X-A11yForge-Agency-Key", "X-A11yForge-Monitor-Secret"],
     )
 
     class ScanRequest(BaseModel):
@@ -310,7 +310,7 @@ if FastAPI:
 
     @app.get("/health")
     def health():
-        return {"ok": True, "product": "A11yForge", "version": "1.6.0"}
+        return {"ok": True, "product": "A11yForge", "version": "1.7.0"}
 
     @app.post("/api/scan")
     def scan(req: ScanRequest, request: Request):
