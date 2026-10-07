@@ -550,12 +550,13 @@ if FastAPI:
             else:
                 repair_result["regression"] = {"status": "NOT_RUN", "checks": []}
 
-            package = build_client_package(result, repair_result, source_html=src)
+            # Finalize evidence before persistence so retained scans carry the same
+            # tamper-evident ledger/hash exposed by the live response and monitoring snapshots.
+            result["evidence_ledger"] = assessment_ledger(result)
+            result["evidence_head_hash"] = result["evidence_ledger"].get("head_hash")
             scan_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid4().hex[:8]
             persistence_status = "PERSISTED" if save_scan(scan_id, result) else "STATELESS"
             result["persistence_status"] = persistence_status
-            result["evidence_ledger"] = assessment_ledger(result)
-            result["evidence_head_hash"] = result["evidence_ledger"].get("head_hash")
             package = build_client_package(result, repair_result)
 
             return {
