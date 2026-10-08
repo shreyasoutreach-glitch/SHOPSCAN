@@ -5,18 +5,29 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch:
 
+concurrency:
+  group: a11yforge-monitor
+  cancel-in-progress: false
+
 jobs:
   monitor:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      A11YFORGE_INTERNAL_URL: ${{ secrets.A11YFORGE_INTERNAL_URL }}
+      A11YFORGE_MONITOR_SECRET: ${{ secrets.A11YFORGE_MONITOR_SECRET }}
     steps:
-      - name: Run due monitoring targets
-        env:
-          A11YFORGE_INTERNAL_URL: ${{ secrets.A11YFORGE_INTERNAL_URL }}
-          A11YFORGE_MONITOR_SECRET: ${{ secrets.A11YFORGE_MONITOR_SECRET }}
+      - name: Check monitoring configuration
         run: |
-          test -n "$A11YFORGE_INTERNAL_URL"
-          test -n "$A11YFORGE_MONITOR_SECRET"
+          if [ -z "$A11YFORGE_INTERNAL_URL" ] || [ -z "$A11YFORGE_MONITOR_SECRET" ]; then
+            echo "Monitoring is disabled until A11YFORGE_INTERNAL_URL and A11YFORGE_MONITOR_SECRET are configured."
+            echo "No monitoring request was attempted."
+            exit 0
+          fi
+
+      - name: Run due monitoring targets
+        if: env.A11YFORGE_INTERNAL_URL != '' && env.A11YFORGE_MONITOR_SECRET != ''
+        run: |
           curl --fail-with-body --silent --show-error --max-time 900 \
             -X POST "$A11YFORGE_INTERNAL_URL/api/monitor/run-due" \
             -H "X-A11yForge-Monitor-Secret: $A11YFORGE_MONITOR_SECRET"
